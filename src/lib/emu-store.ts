@@ -1,0 +1,59 @@
+import { create } from "zustand";
+
+type EmuState = {
+  loadedId: string | null;
+  pendingLoad: string | null;
+  drive1On: boolean;
+  drive2On: boolean;
+  drive1Name: string;
+  paused: boolean;
+  color: boolean;
+  scanlines: boolean;
+  invert: boolean;
+  muted: boolean;
+  focused: boolean;
+  status: string;
+  booted: boolean;
+  requestLoad: (id: string) => void;
+  clearPending: () => void;
+  setLoaded: (id: string | null, name: string) => void;
+  setDrive: (drive: 1 | 2, on: boolean) => void;
+  setPaused: (paused: boolean) => void;
+  setColor: (color: boolean) => void;
+  setScanlines: (scanlines: boolean) => void;
+  setInvert: (invert: boolean) => void;
+  setMuted: (muted: boolean) => void;
+  setFocused: (focused: boolean) => void;
+  setStatus: (status: string) => void;
+  setBooted: (booted: boolean) => void;
+};
+
+export const useEmu = create<EmuState>((set) => ({
+  loadedId: null,
+  pendingLoad: null as string | null,
+  drive1On: false,
+  drive2On: false,
+  drive1Name: "Empty",
+  paused: false,
+  color: true,
+  scanlines: true,
+  invert: false,
+  muted: true,
+  focused: false,
+  status: "Powering on…",
+  booted: false,
+  requestLoad: (id) => set({ pendingLoad: id }),
+  clearPending: () => set({ pendingLoad: null }),
+  setLoaded: (id, name) =>
+    set({ loadedId: id, drive1Name: name, pendingLoad: null }),
+  setDrive: (drive, on) =>
+    set(drive === 1 ? { drive1On: on } : { drive2On: on }),
+  setPaused: (paused) => set({ paused }),
+  setColor: (color) => set({ color }),
+  setScanlines: (scanlines) => set({ scanlines }),
+  setInvert: (invert) => set({ invert }),
+  setMuted: (muted) => set({ muted }),
+  setFocused: (focused) => set({ focused }),
+  setStatus: (status) => set({ status }),
+  setBooted: (booted) => set({ booted }),
+}));

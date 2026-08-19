@@ -1,0 +1,34 @@
+{
+  "a2osx": {
+    "bright": 0,
+    "loaded": "a2osx"
+  },
+  "a2osx-800": {
+    "bright": 1796,
+    "loaded": "a2osx-800"
+  },
+  "contiki": {
+    "bright": 3644,
+    "loaded": "contiki"
+  },
+  "contiki-800": {
+    "bright": 4704,
+    "loaded": "contiki-800"
+  },
+  "plasma": {
+    "bright": 1492,
+    "loaded": "plasma"
+  },
+  "plforth": {
+    "bright": 0,
+    "loaded": "plforth"
+  },
+  "audit": {
+    "bright": 1760,
+    "loaded": "audit"
+  },
+  "blank-dos": {
+    "bright": 1900,
+    "loaded": "blank-dos"
+  }
+}

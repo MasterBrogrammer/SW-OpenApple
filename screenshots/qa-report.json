@@ -1,0 +1,41 @@
+{
+  "url": "http://127.0.0.1:8080/",
+  "items": {
+    "dos33": {
+      "width": 560,
+      "height": 384,
+      "bright": 5128,
+      "mean": 6.080915178571429,
+      "loaded": "dos33",
+      "title": true
+    },
+    "a2desktop": {
+      "width": 560,
+      "height": 384,
+      "bright": 3936,
+      "mean": 4.667410714285714,
+      "loaded": "a2desktop"
+    },
+    "a2desktop-800": {
+      "width": 560,
+      "height": 384,
+      "bright": 59808,
+      "mean": 70.921875,
+      "loaded": "a2desktop-800"
+    },
+    "prodos": {
+      "width": 560,
+      "height": 384,
+      "bright": 2068,
+      "mean": 2.4522879464285716,
+      "loaded": "prodos"
+    },
+    "applesoft": {
+      "width": 560,
+      "height": 384,
+      "bright": 7868,
+      "mean": 9.330078125,
+      "loaded": "applesoft"
+    }
+  }
+}

@@ -1,0 +1,55 @@
+OpenApple extra disks — licenses and sources
+============================================
+
+Only titles with a public-domain, freeware, or OSI-style grant are bundled.
+Commercial Apple II software from archive.org / Asimov is not included.
+
+Painter
+  MIT — Randall Frank
+  https://github.com/randall-frank/painter
+
+Tom Bombem
+  GPL-2.0 — Vince Weaver
+  http://www.deater.net/weave/vmwprod/tb1/tb_6502.html
+  https://github.com/deater/dos33fsprogs
+
+MazezaM
+  Public domain freeware — Ventzislav Tzvetkov (Apple II port, 2004)
+  Asimov: images/games/misc/MazezaM.zip
+
+Mystery House
+  Public domain — Roberta Williams (Sierra 10th anniversary grant)
+  Asimov: images/games/adventure/mystery_house.dsk
+
+Eamon
+  Public domain — Donald Brown / Eamon Adventurer's Guild
+  Asimov: images/games/adventure/eamon/eamonmaster.zip (eamaster.dsk)
+
+Colossal Cave Adventure
+  Public domain original; Apple II port by A Bit Better Associates, 1980
+  Asimov: images/games/adventure/adventure.dsk
+
+Beneath Apple Manor (Special Edition)
+  Freeware — Don Worth
+  Asimov: images/games/adventure/beneath_apple_manor/
+
+Silvern Castle v2.1
+  Freeware (2000) — Jeff Fink
+  Asimov: images/games/rpg/silvern_castle/silvern_castle_v2.1.hdv
+
+Apple Writer
+  Freeware (1992) — Paul Lutus; may be copied and given away, not sold
+  Asimov: images/productivity/word_processing/Apple Writer 1.1.dsk
+
+FrEdWriter 3.10
+  Public domain / free-to-copy education software — Al Rogers (CUE Softswap)
+  Asimov: images/productivity/word_processing/FREDWRITER 3.10.dsk
+
+Electric Duet
+  GPL-2.0 — Paul Lutus
+  https://arachnoid.com/electric_duet/
+  Asimov: images/sound/electric_duet/ElectricDuet.dsk
+
+Apple Pi Music Disk
+  Public domain user-group compilation
+  Asimov: images/pd_collections/misc/Apple Pi Music Disk 1.dsk

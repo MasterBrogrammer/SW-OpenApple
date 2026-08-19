@@ -1,0 +1,29 @@
+{
+  "dos33": {
+    "width": 560,
+    "height": 384,
+    "bright": 5048,
+    "loaded": "dos33",
+    "text": "DOS VERSION 3.3            08/25/80\n\nAPPLE II PLUS OR ROMCARD   SYSTEM MASTER\n\n\n\n\n\n\n(LOADING INTEGER INTO LANGUAGE CARD)",
+    "pc": 47381,
+    "frames": 490
+  },
+  "applesoft": {
+    "width": 560,
+    "height": 384,
+    "bright": 132,
+    "loaded": "applesoft",
+    "text": "\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n]",
+    "pc": 49791,
+    "frames": 714
+  },
+  "prodos": {
+    "width": 560,
+    "height": 384,
+    "bright": 132,
+    "loaded": "prodos",
+    "text": "\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n]",
+    "pc": 49806,
+    "frames": 1327
+  }
+}

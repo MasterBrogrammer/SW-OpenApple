@@ -1,0 +1,38 @@
+{
+  "url": "http://127.0.0.1:8080/",
+  "viewports": {
+    "desktop": {
+      "width": 1280,
+      "height": 800,
+      "status": 200,
+      "title": "OpenApple",
+      "hasCanvas": true,
+      "bodyTextLen": 4034,
+      "bodyTextHash": "41a1e87f255ddc74b29394a00e4b6af081214d4e8befdfa09e81f67b1bee0bde",
+      "bodyTextPrefix": "][ OpenApple Enhanced IIe · 65C02 · FOSS disks Sign in S6 D1 · D",
+      "horizontalOverflow": false,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "screenshot": "/workspace/screenshots/app-builder-preview.png"
+    },
+    "mobile": {
+      "width": 390,
+      "height": 844,
+      "status": 200,
+      "title": "OpenApple",
+      "hasCanvas": true,
+      "bodyTextLen": 3879,
+      "bodyTextHash": "879f2be54ab852400c1fb4593ef78949db40e02053efdd0abbd295d0cf797d88",
+      "bodyTextPrefix": "][ OpenApple Sign in S6 D1 · DOS 3.3 Master Show keyboard FOSS l",
+      "horizontalOverflow": false,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "screenshot": "/workspace/screenshots/app-builder-preview-mobile.png"
+    }
+  },
+  "brandWarnings": [
+    "BRAND WARNING: this looks like a game/canvas app but src/lib/og/site.json is missing \"type\": \"x:game\". X uses og:type=x:game to present the unfurl as a game card — set it in /workspace/src/lib/og/site.json per /workspace/.grok/skills/og/SKILL.md. Do not invent x:type or overload twitter:card as the game signal.",
+    "BRAND WARNING: this looks like a game/canvas app but /workspace/public/x-banner.jpg is missing. Games need a 50:11 X feed card (1200×264 JPEG) at public/x-banner.jpg — open /workspace/.grok/skills/og/SKILL.md and finish the brand-asset pass."
+  ],
+  "verdictFile": "/workspace/screenshots/app-builder-preview.json"
+}

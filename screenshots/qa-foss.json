@@ -1,0 +1,32 @@
+{
+  "url": "http://127.0.0.1:8080/",
+  "items": {
+    "tombombem": {
+      "bright": 1652,
+      "mean": 1.958984375,
+      "pc": 47618,
+      "text": "LOADING TB_6502 BY VINCE WEAVER",
+      "drive": "ready",
+      "loaded": "tombombem",
+      "ok": true
+    },
+    "painter": {
+      "bright": 132,
+      "mean": 0.15652901785714285,
+      "pc": 49791,
+      "text": "]",
+      "drive": "ready",
+      "loaded": "painter",
+      "ok": false
+    },
+    "eamon": {
+      "bright": 25928,
+      "mean": 27.02548363095238,
+      "pc": 47619,
+      "text": "",
+      "drive": "ready",
+      "loaded": "eamon",
+      "ok": true
+    }
+  }
+}
