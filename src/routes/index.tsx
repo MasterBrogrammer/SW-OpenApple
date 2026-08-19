@@ -44,7 +44,7 @@ function Home() {
         <EmulatorScreen />
         <SoftwareLibrary />
       </main>
-      <footer className="shrink-0 border-t border-border px-4 py-3 text-center text-xs text-muted">
+      <footer className="hidden shrink-0 border-t border-border px-4 py-2 text-center text-xs text-muted lg:block">
         Emulator core is Apple ][js by Will Scullin (MIT). Enhanced IIe, 65C02,
         Disk II + SmartPort. Bundled disks are FOSS or historic system software;
         drop your own .dsk for the rest.

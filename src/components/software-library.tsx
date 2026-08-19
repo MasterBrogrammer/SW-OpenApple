@@ -266,7 +266,11 @@ function TitleRow({
         disabled={loading}
         onClick={onBoot}
       >
-        {loading ? "Loading…" : active ? "Reboot this disk" : "Insert & boot"}
+        {loading
+          ? "Loading…"
+          : active
+            ? "Reboot"
+            : "Insert & boot"}
       </Button>
     </li>
   );
@@ -334,7 +338,11 @@ function UserRow({
         disabled={loading}
         onClick={onBoot}
       >
-        {loading ? "Loading…" : active ? "Reboot this disk" : "Insert & boot"}
+        {loading
+          ? "Loading…"
+          : active
+            ? "Reboot"
+            : "Insert & boot"}
       </Button>
     </li>
   );

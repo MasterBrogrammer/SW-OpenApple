@@ -1,10 +1,11 @@
 import { useEffect, useRef, type ReactNode } from "react";
 import {
   Contrast,
+  FlipVertical2,
   Monitor,
+  Power,
   Pause,
   Play,
-  Power,
   RotateCcw,
   ScanLine,
   Volume2,
@@ -57,7 +58,10 @@ export function EmulatorScreen() {
   const muted = useEmu((s) => s.muted);
   const focused = useEmu((s) => s.focused);
   const drive1On = useEmu((s) => s.drive1On);
+  const drive2On = useEmu((s) => s.drive2On);
   const drive1Name = useEmu((s) => s.drive1Name);
+  const drive2Name = useEmu((s) => s.drive2Name);
+  const paddleAxis = useEmu((s) => s.paddleAxis);
   const status = useEmu((s) => s.status);
   const loadedId = useEmu((s) => s.loadedId);
   const booted = useEmu((s) => s.booted);
@@ -79,7 +83,7 @@ export function EmulatorScreen() {
         const want =
           useEmu.getState().pendingLoad?.id ??
           useEmu.getState().loadedId ??
-          "little-brick-out";
+          "applesoft";
         await loadTitle(machine, want, canvas);
         canvas.focus();
         useEmu.getState().setFocused(true);
@@ -169,23 +173,24 @@ export function EmulatorScreen() {
 
   return (
     <section
-      className="flex min-h-0 flex-col rounded-lg bg-surface p-3 shadow-[var(--shadow-border)] sm:p-4"
+      className="flex h-full min-h-0 flex-col rounded-lg bg-surface p-3 shadow-[var(--shadow-border)] sm:p-4"
       data-loaded-id={loadedId ?? ""}
       data-emu-status={emuStatus}
     >
-      <div
-        className={cn(
-          "screen-bezel relative mx-auto w-full max-w-[840px] overflow-hidden rounded-md bg-screen",
-          scanlines && "scanlines",
-        )}
-      >
+      <div className="screen-stage">
+        <div
+          className={cn(
+            "screen-bezel rounded-md",
+            scanlines && "scanlines",
+          )}
+        >
         <canvas
           ref={canvasRef}
           width={560}
           height={384}
           tabIndex={0}
           className={cn(
-            "apple-screen block h-auto w-full outline-none",
+            "apple-screen h-full w-full outline-none",
             !color && "mono",
             invert && "invert",
           )}
@@ -198,8 +203,14 @@ export function EmulatorScreen() {
             const r = canvas.getBoundingClientRect();
             const x = (event.clientX - r.left) / r.width;
             const y = (event.clientY - r.top) / r.height;
-            io.paddle(0, clamp01(x));
-            io.paddle(1, clamp01(y));
+            const axis = useEmu.getState().paddleAxis;
+            if (axis === "y") {
+              io.paddle(0, clamp01(y));
+              io.paddle(1, clamp01(x));
+            } else {
+              io.paddle(0, clamp01(x));
+              io.paddle(1, clamp01(y));
+            }
           }}
           onMouseDown={(event) => {
             event.preventDefault();
@@ -223,12 +234,27 @@ export function EmulatorScreen() {
             </span>
           </div>
         ) : null}
+        </div>
       </div>
 
-      <div className="mx-auto mt-3 flex w-full max-w-[840px] flex-wrap items-center gap-2">
-        <DriveLight on={drive1On} label={`S6 D1 · ${drive1Name}`} />
-        <span className="hidden text-xs text-muted sm:inline">{status}</span>
-        <div className="ml-auto flex flex-wrap items-center gap-1">
+      <div className="mt-3 flex shrink-0 flex-col gap-2">
+        <div className="flex flex-wrap items-center gap-3">
+          <DriveBay n={1} on={drive1On} name={drive1Name} />
+          <DriveBay n={2} on={drive2On} name={drive2Name} />
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="ml-auto"
+            onClick={() => useEmu.getState().requestEject()}
+          >
+            <Power className="size-3.5" />
+            Eject / reset
+          </Button>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+        <span className="min-w-0 flex-1 truncate text-xs text-muted">{status}</span>
+        <div className="flex flex-wrap items-center gap-1">
           <IconBtn
             label={color ? "Color" : "Mono"}
             onClick={() => useEmu.getState().setColor(!color)}
@@ -263,27 +289,28 @@ export function EmulatorScreen() {
             {paused ? <Play className="size-4" /> : <Pause className="size-4" />}
           </IconBtn>
           <IconBtn
-            label="Reset"
+            label={
+              paddleAxis === "y"
+                ? "Paddle = mouse up/down"
+                : "Paddle = mouse left/right"
+            }
+            onClick={() =>
+              useEmu
+                .getState()
+                .setPaddleAxis(useEmu.getState().paddleAxis === "y" ? "x" : "y")
+            }
+          >
+            <FlipVertical2 className="size-4" />
+          </IconBtn>
+          <IconBtn
+            label="Warm reset"
             onClick={() => machineRef.current?.apple2.reset()}
           >
             <RotateCcw className="size-4" />
           </IconBtn>
-          <IconBtn
-            label="Power"
-            onClick={() => {
-              const id = useEmu.getState().loadedId ?? "applesoft";
-              useEmu.getState().requestLoad(id);
-            }}
-          >
-            <Power className="size-4" />
-          </IconBtn>
+        </div>
         </div>
       </div>
-
-      <p className="mx-auto mt-2 hidden max-w-[840px] text-xs text-muted md:block">
-        Click the screen to type. Mouse on the CRT is the joystick / paddle.
-        Ctrl+Delete is Reset. Open Apple is ⌘ / Win; Closed Apple is Alt.
-      </p>
 
       <SoftKeyboard
         onKey={(code) => machineRef.current?.apple2.getIO().keyDown(code)}
@@ -293,16 +320,25 @@ export function EmulatorScreen() {
   );
 }
 
-function DriveLight({ on, label }: { on: boolean; label: string }) {
+function DriveBay({
+  n,
+  on,
+  name,
+}: {
+  n: 1 | 2;
+  on: boolean;
+  name: string;
+}) {
   return (
-    <span className="inline-flex items-center gap-2 font-mono text-[11px] text-muted">
+    <span className="inline-flex min-w-0 items-center gap-2 rounded-md bg-raised px-2.5 py-1.5 font-mono text-[11px] text-muted">
       <span
         className={cn(
-          "size-2 rounded-full",
-          on ? "bg-accent shadow-[0_0_8px_var(--color-accent)]" : "bg-raised",
+          "size-2 shrink-0 rounded-full",
+          on ? "bg-accent shadow-[0_0_8px_var(--color-accent)]" : "bg-border",
         )}
       />
-      {label}
+      <span className="shrink-0 text-[10px] tracking-wide uppercase">D{n}</span>
+      <span className="truncate text-fg">{name}</span>
     </span>
   );
 }
@@ -415,8 +451,17 @@ type Loadable = {
   category?: Title["category"];
   media: Title["media"] | { kind: "bytes"; format: string; floppy: boolean; data: ArrayBuffer };
   bootSteps?: BootStep[];
+  paddleAxis?: "x" | "y";
   play?: string;
 };
+
+function driveLabels(title: Loadable): { d1: string; d2: string } {
+  if (title.media.kind === "none" || title.id === "applesoft") {
+    return { d1: "Empty", d2: "Empty" };
+  }
+  if (title.bootSteps?.length) return { d1: "DOS 3.3", d2: title.name };
+  return { d1: title.name, d2: "Empty" };
+}
 
 function stepsFor(title: Loadable): BootStep[] {
   if (title.bootSteps?.length) return title.bootSteps;
@@ -468,7 +513,6 @@ async function loadTitle(
 
     if (media.kind === "none") {
       io.setSlot(6, null);
-      useEmu.getState().setLoaded(id, "Empty");
     } else if (media.kind === "json") {
       io.setSlot(6, machine.disk2);
       const json = await fetchJson<JSONDisk & { writeProtected?: boolean }>(
@@ -479,13 +523,11 @@ async function loadTitle(
       if (json.writeProtected && json.readOnly == null) json.readOnly = true;
       const ok = machine.disk2.setDisk(1, json);
       if (!ok) throw new Error(`Could not decode ${title.name}`);
-      useEmu.getState().setLoaded(id, title.name);
     } else if (media.kind === "floppy") {
       io.setSlot(6, machine.disk2);
       const buf = await fetchBuffer(media.url, title.name);
       if (gen !== loadGeneration) return;
       await machine.disk2.setBinary(1, title.name, media.format, buf);
-      useEmu.getState().setLoaded(id, title.name);
     } else if (media.kind === "bytes") {
       if (media.floppy) {
         io.setSlot(6, machine.disk2);
@@ -504,14 +546,16 @@ async function loadTitle(
           media.data,
         );
       }
-      useEmu.getState().setLoaded(id, title.name);
     } else {
       io.setSlot(6, null);
       const buf = await fetchBuffer(media.url, title.name);
       if (gen !== loadGeneration) return;
       await machine.smartport.setBinary(1, title.name, media.format, buf);
-      useEmu.getState().setLoaded(id, title.name);
     }
+
+    const insertedId = title.id === "applesoft" ? null : id;
+    useEmu.getState().setLoaded(insertedId, driveLabels(title));
+    useEmu.getState().setPaddleAxis(title.paddleAxis ?? "x");
 
     if (gen !== loadGeneration) return;
     clearTextPage(machine);

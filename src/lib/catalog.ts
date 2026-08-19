@@ -25,6 +25,8 @@ export type Title = {
    * Use this for files that live on a System Master (not self-booting games).
    */
   bootSteps?: BootStep[];
+  /** Which mouse axis drives paddle 0. Brick Out is sideways — use "y". */
+  paddleAxis?: "x" | "y";
 };
 
 export const CATEGORIES = [
@@ -48,11 +50,12 @@ export const CATALOG: Title[] = [
     featured: true,
     summary:
       "Woz’s Breakout, shipped on the DOS 3.3 System Master. Every school IIe had this.",
-    play: "Move the mouse left/right over the screen (paddle). Click to serve.",
+    play: "Woz laid this out sideways: paddle on the left, bricks on the right. Mouse up/down, click to serve.",
     media: DOS33,
     size: "140K floppy",
     license: "Historic system software",
     tags: ["breakout", "woz", "paddle", "school"],
+    paddleAxis: "y",
     bootSteps: [{ wait: "]", type: "RUN LITTLE BRICK OUT\r" }],
   },
   {

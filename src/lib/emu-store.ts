@@ -2,6 +2,8 @@ import { create } from "zustand";
 
 type Pending = { id: string; nonce: number };
 
+export type PaddleAxis = "x" | "y";
+
 type EmuState = {
   loadedId: string | null;
   loadingId: string | null;
@@ -10,6 +12,8 @@ type EmuState = {
   drive1On: boolean;
   drive2On: boolean;
   drive1Name: string;
+  drive2Name: string;
+  paddleAxis: PaddleAxis;
   paused: boolean;
   color: boolean;
   scanlines: boolean;
@@ -20,11 +24,16 @@ type EmuState = {
   booted: boolean;
   nonce: number;
   requestLoad: (id: string) => void;
+  requestEject: () => void;
   clearPending: () => void;
-  setLoaded: (id: string | null, name: string) => void;
+  setLoaded: (
+    id: string | null,
+    drives: { d1: string; d2: string },
+  ) => void;
   setLoading: (id: string | null) => void;
   setLoadError: (error: string | null) => void;
   setDrive: (drive: 1 | 2, on: boolean) => void;
+  setPaddleAxis: (axis: PaddleAxis) => void;
   setPaused: (paused: boolean) => void;
   setColor: (color: boolean) => void;
   setScanlines: (scanlines: boolean) => void;
@@ -43,6 +52,8 @@ export const useEmu = create<EmuState>((set) => ({
   drive1On: false,
   drive2On: false,
   drive1Name: "Empty",
+  drive2Name: "Empty",
+  paddleAxis: "x",
   paused: false,
   color: true,
   scanlines: true,
@@ -58,15 +69,23 @@ export const useEmu = create<EmuState>((set) => ({
       nonce: s.nonce + 1,
       loadError: null,
     })),
+  requestEject: () =>
+    set((s) => ({
+      pendingLoad: { id: "applesoft", nonce: s.nonce + 1 },
+      nonce: s.nonce + 1,
+      loadError: null,
+    })),
   clearPending: () => set({ pendingLoad: null }),
-  setLoaded: (id, name) =>
+  setLoaded: (id, drives) =>
     set({
       loadedId: id,
-      drive1Name: name,
+      drive1Name: drives.d1,
+      drive2Name: drives.d2,
       pendingLoad: null,
       loadingId: null,
       loadError: null,
     }),
+  setPaddleAxis: (axis) => set({ paddleAxis: axis }),
   setLoading: (id) => set({ loadingId: id }),
   setLoadError: (error) => set({ loadError: error, loadingId: null }),
   setDrive: (drive, on) =>
