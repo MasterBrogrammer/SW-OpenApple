@@ -515,12 +515,15 @@ async function loadTitle(
       io.setSlot(6, null);
     } else if (media.kind === "json") {
       io.setSlot(6, machine.disk2);
-      const json = await fetchJson<JSONDisk & { writeProtected?: boolean }>(
+      const raw = await fetchJson<JSONDisk & { writeProtected?: boolean }>(
         media.url,
         title.name,
       );
       if (gen !== loadGeneration) return;
-      if (json.writeProtected && json.readOnly == null) json.readOnly = true;
+      const json = {
+        ...raw,
+        readOnly: raw.readOnly ?? raw.writeProtected ?? true,
+      };
       const ok = machine.disk2.setDisk(1, json);
       if (!ok) throw new Error(`Could not decode ${title.name}`);
     } else if (media.kind === "floppy") {
@@ -554,17 +557,17 @@ async function loadTitle(
     }
 
     const insertedId = title.id === "applesoft" ? null : id;
-    useEmu.getState().setLoaded(insertedId, driveLabels(title));
-    useEmu.getState().setPaddleAxis(title.paddleAxis ?? "x");
+    useEmu.getState().setLoaded(
+      insertedId,
+      driveLabels(title),
+      title.paddleAxis ?? "x",
+    );
 
     if (gen !== loadGeneration) return;
     clearTextPage(machine);
     machine.apple2.reset();
-    if (useEmu.getState().paused) {
-      useEmu.getState().setPaused(false);
-    } else {
-      machine.apple2.run();
-    }
+    useEmu.getState().setPaused(false);
+    machine.apple2.run();
     pushRecent(id);
     const hint =
       title.play ??

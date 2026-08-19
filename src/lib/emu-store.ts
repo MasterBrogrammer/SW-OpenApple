@@ -29,6 +29,7 @@ type EmuState = {
   setLoaded: (
     id: string | null,
     drives: { d1: string; d2: string },
+    paddleAxis?: PaddleAxis,
   ) => void;
   setLoading: (id: string | null) => void;
   setLoadError: (error: string | null) => void;
@@ -76,14 +77,15 @@ export const useEmu = create<EmuState>((set) => ({
       loadError: null,
     })),
   clearPending: () => set({ pendingLoad: null }),
-  setLoaded: (id, drives) =>
+  setLoaded: (id, drives, paddleAxis) =>
     set({
       loadedId: id,
-      drive1Name: drives.d1,
-      drive2Name: drives.d2,
+      drive1Name: drives?.d1 ?? "Empty",
+      drive2Name: drives?.d2 ?? "Empty",
       pendingLoad: null,
       loadingId: null,
       loadError: null,
+      ...(paddleAxis ? { paddleAxis } : {}),
     }),
   setPaddleAxis: (axis) => set({ paddleAxis: axis }),
   setLoading: (id) => set({ loadingId: id }),
