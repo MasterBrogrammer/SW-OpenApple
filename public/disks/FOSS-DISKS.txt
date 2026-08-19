@@ -6,9 +6,11 @@ grant are bundled. Commercial Apple II software (Choplifter, Karateka,
 Lode Runner, Oregon Trail, Atarisoft arcade ports, …) is not included.
 Drop your own .dsk / .woz in the app.
 
-DOS 3.3 System Master (Little Brick Out, Apple Trek, Animals, Color DemoSoft)
-  Historic Apple system software, JSON image from apple2js
-  Filenames: LITTLE BRICK OUT (B), APPLE-TREK, ANIMALS, COLOR DEMOSOFT
+DOS 3.3 System Master (from apple2js JSON)
+  Historic Apple system software. Real catalog (this image has no Apple Trek):
+  A  LITTLE BRICK OUT, COLOR DEMOSOFT, BRIAN'S THEME
+  I  ANIMALS, APPLEVISION, BIORHYTHM  (need DOS command INT first)
+  Autostart HELLO, then we wait for ] or > and RUN.
 
 Painter
   MIT — Randall Frank

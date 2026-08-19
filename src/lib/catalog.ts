@@ -1,3 +1,5 @@
+import type { BootStep } from "@/lib/boot-exec";
+
 export type Media =
   | { kind: "none" }
   | { kind: "json"; url: string }
@@ -18,10 +20,11 @@ export type Title = {
   author?: string;
   tags?: string[];
   featured?: boolean;
-  /** Typed into the II after the disk boots. */
-  bootKeys?: string;
-  /** Ms to wait after reset before typing bootKeys. */
-  bootDelay?: number;
+  /**
+   * After the disk boots, wait for DOS/BASIC prompts and type these commands.
+   * Use this for files that live on a System Master (not self-booting games).
+   */
+  bootSteps?: BootStep[];
 };
 
 export const CATEGORIES = [
@@ -50,25 +53,26 @@ export const CATALOG: Title[] = [
     size: "140K floppy",
     license: "Historic system software",
     tags: ["breakout", "woz", "paddle", "school"],
-    bootKeys: "BRUN LITTLE BRICK OUT\r",
-    bootDelay: 4800,
+    bootSteps: [{ wait: "]", type: "RUN LITTLE BRICK OUT\r" }],
   },
   {
-    id: "apple-trek",
-    name: "Apple Trek",
+    id: "applevision",
+    name: "Apple-Vision",
     category: "Arcade",
     year: 1979,
     author: "Apple Computer",
     featured: true,
     summary:
-      "Star Trek on a grid: warp, phasers, photon torpedoes. The other game every lab period started with.",
-    play: "Type commands at the prompt after it loads (help is usually just HELP).",
+      "The hi-res demo from the System Master. Integer BASIC, so we switch language before RUN.",
+    play: "Let it play. This is the one that made the lab IIe look expensive.",
     media: DOS33,
     size: "140K floppy",
     license: "Historic system software",
-    tags: ["star trek", "school", "text"],
-    bootKeys: "RUN APPLE-TREK\r",
-    bootDelay: 4800,
+    tags: ["hi-res", "demo", "school", "integer"],
+    bootSteps: [
+      { wait: "]", type: "INT\r" },
+      { wait: ">", type: "RUN APPLEVISION\r" },
+    ],
   },
   {
     id: "painter",
@@ -122,13 +126,44 @@ export const CATALOG: Title[] = [
     author: "Apple Computer",
     summary:
       "Twenty questions that learns. You taught it ‘is it a cat?’ on a lab IIe in 1983.",
-    play: "Answer Y or N. When it fails, teach it a new animal.",
+    play: "Integer BASIC: we boot DOS, type INT, then RUN ANIMALS. Answer Y or N.",
     media: DOS33,
     size: "140K floppy",
     license: "Historic system software",
-    tags: ["school", "classic"],
-    bootKeys: "RUN ANIMALS\r",
-    bootDelay: 4800,
+    tags: ["school", "classic", "integer"],
+    bootSteps: [
+      { wait: "]", type: "INT\r" },
+      { wait: ">", type: "RUN ANIMALS\r" },
+    ],
+  },
+  {
+    id: "brians-theme",
+    name: "Brian’s Theme",
+    category: "Arcade",
+    year: 1980,
+    author: "Apple Computer",
+    summary: "Hi-res art/music demo from the System Master. Applesoft, so it RUNs after DOS.",
+    media: DOS33,
+    size: "140K floppy",
+    license: "Historic system software",
+    tags: ["hi-res", "demo", "school"],
+    bootSteps: [{ wait: "]", type: "RUN BRIAN'S THEME\r" }],
+  },
+  {
+    id: "biorhythm",
+    name: "Biorhythm",
+    category: "Arcade",
+    year: 1979,
+    author: "Apple Computer",
+    summary: "Print-your-cycles parlor program. Integer BASIC; we INT then RUN.",
+    media: DOS33,
+    size: "140K floppy",
+    license: "Historic system software",
+    tags: ["school", "integer"],
+    bootSteps: [
+      { wait: "]", type: "INT\r" },
+      { wait: ">", type: "RUN BIORHYTHM\r" },
+    ],
   },
   {
     id: "mystery-house",
@@ -153,12 +188,11 @@ export const CATALOG: Title[] = [
     author: "Donald Brown",
     summary:
       "Public-domain RPG construction set. Main Hall plus the first cave, one disk.",
-    play: "If it sits at BASIC, it will type RUN HELLO for you. Then walk into the cave.",
+    play: "Boots itself when it can. If it stops at ], we RUN HELLO.",
     media: { kind: "floppy", url: "/disks/eamon.dsk", format: "dsk" },
     size: "140K floppy",
     license: "Public domain — Donald Brown",
-    bootKeys: "RUN HELLO\r",
-    bootDelay: 4200,
+    bootSteps: [{ wait: "]", type: "RUN HELLO\r", optional: true }],
     tags: ["rpg", "eamon"],
   },
   {
@@ -266,8 +300,7 @@ export const CATALOG: Title[] = [
     media: DOS33,
     size: "140K floppy",
     license: "Historic system software",
-    bootKeys: "RUN COLOR DEMOSOFT\r",
-    bootDelay: 4800,
+    bootSteps: [{ wait: "]", type: "RUN COLOR DEMOSOFT\r" }],
     tags: ["hi-res", "demo", "school"],
   },
   {

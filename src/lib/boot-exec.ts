@@ -1,0 +1,124 @@
+import type { Apple2 as Apple2Class } from "js/apple2";
+
+export type Prompt = "]" | ">";
+
+export type BootStep = {
+  /** BASIC prompt to wait for before typing. Skip the step if optional and it never appears. */
+  wait: Prompt;
+  type: string;
+  optional?: boolean;
+  timeoutMs?: number;
+};
+
+function sleep(ms: number) {
+  return new Promise<void>((resolve) => window.setTimeout(resolve, ms));
+}
+
+function screenText(apple2: Apple2Class): string {
+  try {
+    return apple2.getVideoModes().getText();
+  } catch {
+    return "";
+  }
+}
+
+function lastMeaningfulLine(text: string): string {
+  const lines = text.split(/\n/);
+  for (let i = lines.length - 1; i >= 0; i--) {
+    const line = lines[i].replace(/[\s\u007f]+$/g, "");
+    if (line.trim().length) return line.trim();
+  }
+  return "";
+}
+
+export function readPrompt(text: string): Prompt | null {
+  const line = lastMeaningfulLine(text);
+  if (line === "]" || /^\][\s\u007f@]*$/.test(line)) return "]";
+  if (line === ">" || /^>[\s\u007f@]*$/.test(line)) return ">";
+  return null;
+}
+
+function bootError(text: string): string | null {
+  const up = text.toUpperCase();
+  if (up.includes("FILE NOT FOUND")) return "FILE NOT FOUND — that name is not on this disk";
+  if (up.includes("SYNTAX ERROR") || up.includes("?SYNTAX")) return "SYNTAX ERROR from the typed command";
+  if (up.includes("REENTER")) return "Integer BASIC rejected the line";
+  return null;
+}
+
+async function waitForPrompt(
+  apple2: Apple2Class,
+  want: Prompt,
+  isCancelled: () => boolean,
+  timeoutMs: number,
+): Promise<boolean> {
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    if (isCancelled()) return false;
+    const text = screenText(apple2);
+    if (readPrompt(text) === want) return true;
+    await sleep(120);
+  }
+  return false;
+}
+
+async function breakToPrompt(
+  apple2: Apple2Class,
+  want: Prompt,
+  isCancelled: () => boolean,
+): Promise<boolean> {
+  const io = apple2.getIO();
+  io.setKeyBuffer("\u0003");
+  await sleep(400);
+  if (await waitForPrompt(apple2, want, isCancelled, 2500)) return true;
+  io.setKeyBuffer("\u0003");
+  await sleep(400);
+  return waitForPrompt(apple2, want, isCancelled, 2500);
+}
+
+export async function runBootSteps(
+  apple2: Apple2Class,
+  steps: BootStep[],
+  isCancelled: () => boolean,
+  onStatus: (status: string) => void,
+): Promise<void> {
+  const io = apple2.getIO();
+  for (const [index, step] of steps.entries()) {
+    if (isCancelled()) return;
+    const timeout = step.timeoutMs ?? (index === 0 ? 16000 : 12000);
+    onStatus(
+      step.wait === ">"
+        ? "Waiting for Integer BASIC…"
+        : "Waiting for DOS / Applesoft…",
+    );
+    let ready = await waitForPrompt(apple2, step.wait, isCancelled, timeout);
+    if (!ready && !step.optional) {
+      onStatus("Breaking into BASIC…");
+      ready = await breakToPrompt(apple2, step.wait, isCancelled);
+    }
+    if (!ready) {
+      if (step.optional) return;
+      throw new Error(
+        `The ${step.wait === ">" ? "Integer BASIC >" : "Applesoft ]"} prompt never came up`,
+      );
+    }
+    if (isCancelled()) return;
+    const payload = step.type.endsWith("\r") ? step.type : `${step.type}\r`;
+    onStatus(`Typing ${payload.replace(/\r/g, "").trim()}…`);
+    io.setKeyBuffer(payload);
+    const typed = payload.replace(/\r/g, "").trim();
+    const giveUp = Date.now() + 8000;
+    while (Date.now() < giveUp) {
+      if (isCancelled()) return;
+      const text = screenText(apple2);
+      const err = bootError(text);
+      if (err) {
+        if (step.optional) return;
+        throw new Error(err);
+      }
+      if (typed && text.toUpperCase().includes(typed.toUpperCase())) break;
+      await sleep(80);
+    }
+    await sleep(500);
+  }
+}

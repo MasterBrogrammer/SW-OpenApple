@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SoftKeyboard } from "@/components/soft-keyboard";
+import { runBootSteps, type BootStep } from "@/lib/boot-exec";
 import { getTitle, type Title } from "@/lib/catalog";
 import { useEmu } from "@/lib/emu-store";
 import { pushRecent } from "@/lib/local-prefs";
@@ -36,8 +37,6 @@ type AudioHandle = {
   close: () => void;
 };
 
-let bootKeysTimer = 0;
-let bootKeysInterval = 0;
 let loadGeneration = 0;
 
 declare global {
@@ -413,11 +412,18 @@ async function fetchJson<T>(url: string, label: string): Promise<T> {
 type Loadable = {
   id: string;
   name: string;
+  category?: Title["category"];
   media: Title["media"] | { kind: "bytes"; format: string; floppy: boolean; data: ArrayBuffer };
-  bootKeys?: string;
-  bootDelay?: number;
+  bootSteps?: BootStep[];
   play?: string;
 };
+
+function stepsFor(title: Loadable): BootStep[] {
+  if (title.bootSteps?.length) return title.bootSteps;
+  if (title.media.kind === "none") return [];
+  if (title.category === "System" || title.category === "Workshop") return [];
+  return [{ wait: "]", type: "RUN HELLO\r", optional: true, timeoutMs: 7000 }];
+}
 
 async function resolveLoad(id: string): Promise<Loadable | null> {
   const catalog = getTitle(id);
@@ -522,9 +528,22 @@ async function loadTitle(
         ? "Applesoft BASIC — click the screen to type"
         : `Booting ${title.name}`);
     useEmu.getState().setStatus(hint);
-    scheduleBootKeys(machine, title.bootKeys, title.bootDelay);
     canvas?.focus();
     useEmu.getState().setFocused(true);
+    const steps = stepsFor(title);
+    if (steps.length) {
+      await runBootSteps(
+        machine.apple2,
+        steps,
+        () => gen !== loadGeneration,
+        (status) => {
+          if (gen === loadGeneration) useEmu.getState().setStatus(status);
+        },
+      );
+      if (gen === loadGeneration) {
+        useEmu.getState().setStatus(title.play ?? `Running ${title.name}`);
+      }
+    }
   } catch (err) {
     if (gen !== loadGeneration) return;
     const message = err instanceof Error ? err.message : "Could not load that disk";
@@ -533,44 +552,8 @@ async function loadTitle(
   }
 }
 
-function cancelBootKeys() {
-  if (bootKeysTimer) {
-    window.clearTimeout(bootKeysTimer);
-    bootKeysTimer = 0;
-  }
-  if (bootKeysInterval) {
-    window.clearInterval(bootKeysInterval);
-    bootKeysInterval = 0;
-  }
-}
-
-function scheduleBootKeys(
-  machine: Machine,
-  keys: string | undefined,
-  delay = 2800,
-) {
-  cancelBootKeys();
-  if (!keys) return;
-  bootKeysTimer = window.setTimeout(() => {
-    bootKeysTimer = 0;
-    const io = machine.apple2.getIO();
-    let i = 0;
-    bootKeysInterval = window.setInterval(() => {
-      if (i >= keys.length) {
-        cancelBootKeys();
-        io.keyUp();
-        return;
-      }
-      const ch = keys[i++];
-      const code = ch === "\r" || ch === "\n" ? 0x0d : ch.charCodeAt(0) & 0x7f;
-      io.keyDown(code);
-      io.keyUp();
-    }, 90);
-  }, delay);
-}
-
 function teardown(machine: Machine) {
-  cancelBootKeys();
+  loadGeneration += 1;
   try {
     machine.apple2.stop();
   } catch {
