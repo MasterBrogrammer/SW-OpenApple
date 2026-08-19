@@ -1,11 +1,18 @@
 @echo off
 cd /d "%~dp0"
 title OpenApple
-echo OpenApple — Apple IIe in the browser
+echo OpenApple - Apple IIe in the browser
+echo.
+echo If a browser does not open, go to http://127.0.0.1:8080
+echo Leave this window open while you play.
 echo.
 powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0launch.ps1"
-if errorlevel 1 (
+set ERR=%ERRORLEVEL%
+if %ERR% NEQ 0 (
   echo.
-  echo Launch failed. Need a network connection the first time so Node.js can be downloaded.
+  echo Launch failed (code %ERR%).
+  echo 1. Try opening http://127.0.0.1:8080 in your browser anyway.
+  echo 2. If that page is dead, close other OpenApple windows and run this again.
+  echo 3. First run needs a network connection to download Node.js.
   pause
 )

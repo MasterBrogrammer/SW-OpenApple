@@ -8,9 +8,36 @@ $Tools = Join-Path $PSScriptRoot ".tools"
 $PortableNodeDir = Join-Path $Tools "node"
 $Url = "http://127.0.0.1:8080/"
 
+function Test-OpenApple {
+  try {
+    $req = [System.Net.WebRequest]::Create($Url)
+    $req.Timeout = 1500
+    $req.Method = "GET"
+    $resp = $req.GetResponse()
+    $ok = [int]$resp.StatusCode -ge 200 -and [int]$resp.StatusCode -lt 500
+    $resp.Close()
+    return $ok
+  } catch {
+    return $false
+  }
+}
+
+function Open-Browser {
+  Write-Host "Opening $Url"
+  Start-Process $Url
+}
+
+if (Test-OpenApple) {
+  Write-Host "OpenApple is already running."
+  Open-Browser
+  exit 0
+}
+
 function Find-NodeExe {
-  $cmd = Get-Command node -ErrorAction SilentlyContinue
-  if ($cmd -and $cmd.Source) { return $cmd.Source }
+  foreach ($name in @("node.exe", "node")) {
+    $cmd = Get-Command $name -ErrorAction SilentlyContinue
+    if ($cmd -and $cmd.Source -and (Test-Path $cmd.Source)) { return $cmd.Source }
+  }
   $portable = Join-Path $PortableNodeDir "node.exe"
   if (Test-Path $portable) { return $portable }
   return $null
@@ -46,7 +73,7 @@ if (-not (Test-Path $node)) { throw "Could not find or install Node.js" }
 $nodeDir = Split-Path -Parent $node
 $env:Path = "$nodeDir;$env:Path"
 $npm = Join-Path $nodeDir "npm.cmd"
-if (-not (Test-Path $npm)) { $npm = "npm" }
+if (-not (Test-Path $npm)) { $npm = "npm.cmd" }
 
 Write-Host "Using Node: $(& $node -v)"
 
@@ -57,13 +84,37 @@ if (-not (Test-Path (Join-Path $PSScriptRoot "node_modules"))) {
 }
 
 Write-Host "Starting OpenApple at $Url"
-Start-Job -ScriptBlock {
-  Start-Sleep -Seconds 5
-  Start-Process $using:Url
-} | Out-Null
+Write-Host "Leave this window open while you play. Close it to stop the emulator host."
 
-& $npm run dev
-if ($LASTEXITCODE -ne 0) {
-  Write-Host "Dev server exited. If port 8080 is busy, close the other app and try again."
-  exit $LASTEXITCODE
+$watcher = Start-Job -ScriptBlock {
+  $url = $using:Url
+  for ($i = 0; $i -lt 60; $i++) {
+    Start-Sleep -Seconds 1
+    try {
+      $req = [System.Net.WebRequest]::Create($url)
+      $req.Timeout = 1000
+      $resp = $req.GetResponse()
+      $resp.Close()
+      Start-Process $url
+      return
+    } catch {
+      # still starting
+    }
+  }
+}
+
+try {
+  & $npm run dev
+  if ($LASTEXITCODE -ne 0 -and (Test-OpenApple)) {
+    Write-Host "Port 8080 is already serving OpenApple."
+    Open-Browser
+    exit 0
+  }
+  if ($LASTEXITCODE -ne 0) {
+    Write-Host "Dev server exited. If you saw 'Port 8080 is already in use', just open $Url"
+    exit $LASTEXITCODE
+  }
+} finally {
+  Stop-Job $watcher -ErrorAction SilentlyContinue
+  Remove-Job $watcher -Force -ErrorAction SilentlyContinue
 }
