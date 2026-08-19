@@ -12,13 +12,16 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SoftKeyboard } from "@/components/soft-keyboard";
-import { getTitle } from "@/lib/catalog";
+import { getTitle, type Title } from "@/lib/catalog";
 import { useEmu } from "@/lib/emu-store";
+import { pushRecent } from "@/lib/local-prefs";
+import { getUserDiskBytes, parseUserTitleId } from "@/lib/user-disks";
 import { cn } from "@/lib/utils";
 import type DiskII from "js/cards/disk2";
 import type SmartPort from "js/cards/smartport";
 import type { Apple2 as Apple2Class } from "js/apple2";
 import type { JSONDisk } from "js/formats/types";
+import { initGamepad } from "js/ui/gamepad";
 
 type Machine = {
   apple2: Apple2Class;
@@ -35,6 +38,7 @@ type AudioHandle = {
 
 let bootKeysTimer = 0;
 let bootKeysInterval = 0;
+let loadGeneration = 0;
 
 declare global {
   interface Window {
@@ -46,6 +50,7 @@ export function EmulatorScreen() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const machineRef = useRef<Machine | null>(null);
   const pending = useEmu((s) => s.pendingLoad);
+  const pendingNonce = pending?.nonce ?? 0;
   const paused = useEmu((s) => s.paused);
   const color = useEmu((s) => s.color);
   const scanlines = useEmu((s) => s.scanlines);
@@ -73,10 +78,10 @@ export function EmulatorScreen() {
         window.__oa = machine;
         useEmu.getState().setBooted(true);
         const want =
-          useEmu.getState().pendingLoad ??
+          useEmu.getState().pendingLoad?.id ??
           useEmu.getState().loadedId ??
-          "dos33";
-        await loadTitle(machine, want);
+          "little-brick-out";
+        await loadTitle(machine, want, canvas);
         canvas.focus();
         useEmu.getState().setFocused(true);
       })
@@ -101,9 +106,10 @@ export function EmulatorScreen() {
   useEffect(() => {
     if (!booted || !pending) return;
     const machine = machineRef.current;
+    const canvas = canvasRef.current;
     if (!machine) return;
-    void loadTitle(machine, pending);
-  }, [pending, booted]);
+    void loadTitle(machine, pending.id, canvas);
+  }, [pendingNonce, booted, pending]);
 
   useEffect(() => {
     const machine = machineRef.current;
@@ -186,6 +192,26 @@ export function EmulatorScreen() {
           )}
           onFocus={() => useEmu.getState().setFocused(true)}
           onBlur={() => useEmu.getState().setFocused(false)}
+          onMouseMove={(event) => {
+            const io = machineRef.current?.apple2.getIO();
+            const canvas = canvasRef.current;
+            if (!io || !canvas) return;
+            const r = canvas.getBoundingClientRect();
+            const x = (event.clientX - r.left) / r.width;
+            const y = (event.clientY - r.top) / r.height;
+            io.paddle(0, clamp01(x));
+            io.paddle(1, clamp01(y));
+          }}
+          onMouseDown={(event) => {
+            event.preventDefault();
+            canvasRef.current?.focus();
+            machineRef.current?.audio.resume();
+            machineRef.current?.apple2.getIO().buttonDown(event.button === 0 ? 0 : 1);
+          }}
+          onMouseUp={(event) => {
+            machineRef.current?.apple2.getIO().buttonUp(event.button === 0 ? 0 : 1);
+          }}
+          onContextMenu={(event) => event.preventDefault()}
           onClick={() => {
             canvasRef.current?.focus();
             machineRef.current?.audio.resume();
@@ -246,9 +272,8 @@ export function EmulatorScreen() {
           <IconBtn
             label="Power"
             onClick={() => {
-              const machine = machineRef.current;
-              if (!machine) return;
-              useEmu.getState().requestLoad("applesoft");
+              const id = useEmu.getState().loadedId ?? "applesoft";
+              useEmu.getState().requestLoad(id);
             }}
           >
             <Power className="size-4" />
@@ -257,8 +282,8 @@ export function EmulatorScreen() {
       </div>
 
       <p className="mx-auto mt-2 hidden max-w-[840px] text-xs text-muted md:block">
-        Keys go to the II when the screen is focused. Ctrl+Delete is Reset. Open
-        Apple is ⌘ / Win; Closed Apple is Alt.
+        Click the screen to type. Mouse on the CRT is the joystick / paddle.
+        Ctrl+Delete is Reset. Open Apple is ⌘ / Win; Closed Apple is Alt.
       </p>
 
       <SoftKeyboard
@@ -355,10 +380,15 @@ async function boot(canvas: HTMLCanvasElement): Promise<Machine> {
 
   const audio = attachAudio(io);
   audio.setMuted(useEmu.getState().muted);
+  initGamepad();
 
   apple2.reset();
   apple2.run();
   return { apple2, disk2, smartport, audio };
+}
+
+function clamp01(n: number) {
+  return Math.min(1, Math.max(0, n));
 }
 
 function clearTextPage(machine: Machine) {
@@ -368,12 +398,61 @@ function clearTextPage(machine: Machine) {
   }
 }
 
-async function loadTitle(machine: Machine, id: string) {
-  const title = getTitle(id);
-  if (!title) return;
+async function fetchBuffer(url: string, label: string): Promise<ArrayBuffer> {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`${label} failed to load (${res.status})`);
+  return res.arrayBuffer();
+}
+
+async function fetchJson<T>(url: string, label: string): Promise<T> {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`${label} failed to load (${res.status})`);
+  return res.json() as Promise<T>;
+}
+
+type Loadable = {
+  id: string;
+  name: string;
+  media: Title["media"] | { kind: "bytes"; format: string; floppy: boolean; data: ArrayBuffer };
+  bootKeys?: string;
+  bootDelay?: number;
+  play?: string;
+};
+
+async function resolveLoad(id: string): Promise<Loadable | null> {
+  const catalog = getTitle(id);
+  if (catalog) return catalog;
+  const userId = parseUserTitleId(id);
+  if (!userId) return null;
+  const row = await getUserDiskBytes(userId);
+  if (!row) throw new Error("That disk is no longer in your library");
+  return {
+    id,
+    name: row.name,
+    media: {
+      kind: "bytes",
+      format: row.format,
+      floppy: row.kind === "floppy",
+      data: row.bytes,
+    },
+  };
+}
+
+async function loadTitle(
+  machine: Machine,
+  id: string,
+  canvas: HTMLCanvasElement | null,
+) {
+  const gen = ++loadGeneration;
   useEmu.getState().clearPending();
-  useEmu.getState().setStatus(`Loading ${title.name}…`);
+  useEmu.getState().setLoading(id);
+  useEmu.getState().setLoadError(null);
   try {
+    const title = await resolveLoad(id);
+    if (gen !== loadGeneration) return;
+    if (!title) throw new Error("Unknown disk");
+    useEmu.getState().setStatus(`Loading ${title.name}…`);
+
     const io = machine.apple2.getIO();
     const media = title.media;
 
@@ -386,25 +465,49 @@ async function loadTitle(machine: Machine, id: string) {
       useEmu.getState().setLoaded(id, "Empty");
     } else if (media.kind === "json") {
       io.setSlot(6, machine.disk2);
-      const json = (await (await fetch(media.url)).json()) as JSONDisk & {
-        writeProtected?: boolean;
-      };
+      const json = await fetchJson<JSONDisk & { writeProtected?: boolean }>(
+        media.url,
+        title.name,
+      );
+      if (gen !== loadGeneration) return;
       if (json.writeProtected && json.readOnly == null) json.readOnly = true;
       const ok = machine.disk2.setDisk(1, json);
       if (!ok) throw new Error(`Could not decode ${title.name}`);
       useEmu.getState().setLoaded(id, title.name);
     } else if (media.kind === "floppy") {
       io.setSlot(6, machine.disk2);
-      const buf = await (await fetch(media.url)).arrayBuffer();
+      const buf = await fetchBuffer(media.url, title.name);
+      if (gen !== loadGeneration) return;
       await machine.disk2.setBinary(1, title.name, media.format, buf);
+      useEmu.getState().setLoaded(id, title.name);
+    } else if (media.kind === "bytes") {
+      if (media.floppy) {
+        io.setSlot(6, machine.disk2);
+        await machine.disk2.setBinary(
+          1,
+          title.name,
+          media.format as "dsk" | "po" | "do" | "nib" | "woz",
+          media.data,
+        );
+      } else {
+        io.setSlot(6, null);
+        await machine.smartport.setBinary(
+          1,
+          title.name,
+          media.format as "2mg" | "po" | "hdv",
+          media.data,
+        );
+      }
       useEmu.getState().setLoaded(id, title.name);
     } else {
       io.setSlot(6, null);
-      const buf = await (await fetch(media.url)).arrayBuffer();
+      const buf = await fetchBuffer(media.url, title.name);
+      if (gen !== loadGeneration) return;
       await machine.smartport.setBinary(1, title.name, media.format, buf);
       useEmu.getState().setLoaded(id, title.name);
     }
 
+    if (gen !== loadGeneration) return;
     clearTextPage(machine);
     machine.apple2.reset();
     if (useEmu.getState().paused) {
@@ -412,14 +515,21 @@ async function loadTitle(machine: Machine, id: string) {
     } else {
       machine.apple2.run();
     }
-    useEmu.getState().setStatus(
-      media.kind === "none" ? "Applesoft BASIC — click the screen to type" : `Booting ${title.name}`,
-    );
-    scheduleBootKeys(machine, title.bootKeys);
+    pushRecent(id);
+    const hint =
+      title.play ??
+      (media.kind === "none"
+        ? "Applesoft BASIC — click the screen to type"
+        : `Booting ${title.name}`);
+    useEmu.getState().setStatus(hint);
+    scheduleBootKeys(machine, title.bootKeys, title.bootDelay);
+    canvas?.focus();
+    useEmu.getState().setFocused(true);
   } catch (err) {
-    useEmu.getState().setStatus(
-      err instanceof Error ? err.message : "Could not load that disk",
-    );
+    if (gen !== loadGeneration) return;
+    const message = err instanceof Error ? err.message : "Could not load that disk";
+    useEmu.getState().setStatus(message);
+    useEmu.getState().setLoadError(message);
   }
 }
 
@@ -434,7 +544,11 @@ function cancelBootKeys() {
   }
 }
 
-function scheduleBootKeys(machine: Machine, keys: string | undefined) {
+function scheduleBootKeys(
+  machine: Machine,
+  keys: string | undefined,
+  delay = 2800,
+) {
   cancelBootKeys();
   if (!keys) return;
   bootKeysTimer = window.setTimeout(() => {
@@ -452,7 +566,7 @@ function scheduleBootKeys(machine: Machine, keys: string | undefined) {
       io.keyDown(code);
       io.keyUp();
     }, 90);
-  }, 2800);
+  }, delay);
 }
 
 function teardown(machine: Machine) {

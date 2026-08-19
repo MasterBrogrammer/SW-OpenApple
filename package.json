@@ -1,13 +1,18 @@
 {
-  "name": "app-builder-workspace",
+  "name": "openapple",
   "private": true,
   "sideEffects": false,
   "type": "module",
   "overrides": {
     "nf3": "0.3.17"
   },
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "dev": "vite dev --host 0.0.0.0 --port 8080",
+    "start": "vite dev --host 127.0.0.1 --port 8080",
+    "launch": "powershell -NoProfile -ExecutionPolicy Bypass -File ./launch.ps1",
     "build": "vite build && npm run db:migrate",
     "db:migrate": "node scripts/migrate.mjs",
     "build:dev": "vite build --mode development",

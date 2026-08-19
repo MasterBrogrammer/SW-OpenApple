@@ -1,8 +1,14 @@
 OpenApple extra disks — licenses and sources
 ============================================
 
-Only titles with a public-domain, freeware, or OSI-style grant are bundled.
-Commercial Apple II software from archive.org / Asimov is not included.
+Only titles with a public-domain, freeware, historic-system, or OSI-style
+grant are bundled. Commercial Apple II software (Choplifter, Karateka,
+Lode Runner, Oregon Trail, Atarisoft arcade ports, …) is not included.
+Drop your own .dsk / .woz in the app.
+
+DOS 3.3 System Master (Little Brick Out, Apple Trek, Animals, Color DemoSoft)
+  Historic Apple system software, JSON image from apple2js
+  Filenames: LITTLE BRICK OUT (B), APPLE-TREK, ANIMALS, COLOR DEMOSOFT
 
 Painter
   MIT — Randall Frank

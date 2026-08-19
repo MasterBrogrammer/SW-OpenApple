@@ -1,0 +1,143 @@
+import { useEffect, useState } from "react";
+import { formatSize, sniffDisk, type Sniffed } from "@/lib/disk-format";
+
+export type UserDisk = {
+  id: string;
+  name: string;
+  filename: string;
+  kind: Sniffed["kind"];
+  format: Sniffed["format"];
+  size: string;
+  byteLength: number;
+  addedAt: number;
+};
+
+type StoredDisk = UserDisk & { bytes: ArrayBuffer };
+
+const DB_NAME = "openapple";
+const STORE = "disks";
+
+const listeners = new Set<() => void>();
+
+function emit() {
+  for (const fn of listeners) fn();
+}
+
+export function subscribeUserDisks(fn: () => void) {
+  listeners.add(fn);
+  return () => {
+    listeners.delete(fn);
+  };
+}
+
+function openDb(): Promise<IDBDatabase> {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(DB_NAME, 1);
+    req.onupgradeneeded = () => {
+      const db = req.result;
+      if (!db.objectStoreNames.contains(STORE)) {
+        db.createObjectStore(STORE, { keyPath: "id" });
+      }
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error ?? new Error("IndexedDB open failed"));
+  });
+}
+
+function reqToPromise<T>(req: IDBRequest<T>): Promise<T> {
+  return new Promise((resolve, reject) => {
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error ?? new Error("IndexedDB request failed"));
+  });
+}
+
+export async function listUserDisks(): Promise<UserDisk[]> {
+  const db = await openDb();
+  const tx = db.transaction(STORE, "readonly");
+  const rows = await reqToPromise(tx.objectStore(STORE).getAll() as IDBRequest<StoredDisk[]>);
+  return rows
+    .map(({ bytes: _bytes, ...meta }) => meta)
+    .sort((a, b) => b.addedAt - a.addedAt);
+}
+
+export async function getUserDiskBytes(id: string): Promise<StoredDisk | null> {
+  const db = await openDb();
+  const tx = db.transaction(STORE, "readonly");
+  const row = await reqToPromise(tx.objectStore(STORE).get(id) as IDBRequest<StoredDisk | undefined>);
+  return row ?? null;
+}
+
+export async function importDiskFiles(files: File[]): Promise<UserDisk[]> {
+  const imported: UserDisk[] = [];
+  const db = await openDb();
+  for (const file of files) {
+    const bytes = await file.arrayBuffer();
+    const sniffed = sniffDisk(file.name, bytes.byteLength);
+    if (!sniffed) {
+      throw new Error(
+        `${file.name} is not a disk image I recognize. Use .dsk, .po, .do, .nib, .woz, .2mg, or .hdv.`,
+      );
+    }
+    const id = crypto.randomUUID();
+    const meta: UserDisk = {
+      id,
+      name: file.name.replace(/\.[^.]+$/, "").replace(/[_]+/g, " "),
+      filename: file.name,
+      kind: sniffed.kind,
+      format: sniffed.format,
+      size: formatSize(bytes.byteLength),
+      byteLength: bytes.byteLength,
+      addedAt: Date.now(),
+    };
+    const stored: StoredDisk = { ...meta, bytes };
+    const tx = db.transaction(STORE, "readwrite");
+    await reqToPromise(tx.objectStore(STORE).put(stored));
+    imported.push(meta);
+  }
+  emit();
+  return imported;
+}
+
+export async function removeUserDisk(id: string): Promise<void> {
+  const db = await openDb();
+  const tx = db.transaction(STORE, "readwrite");
+  await reqToPromise(tx.objectStore(STORE).delete(id));
+  emit();
+}
+
+export function useUserDisks() {
+  const [disks, setDisks] = useState<UserDisk[]>([]);
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    const refresh = () => {
+      listUserDisks()
+        .then((rows) => {
+          if (!cancelled) {
+            setDisks(rows);
+            setReady(true);
+          }
+        })
+        .catch(() => {
+          if (!cancelled) setReady(true);
+        });
+    };
+    refresh();
+    const unsub = subscribeUserDisks(refresh);
+    return () => {
+      cancelled = true;
+      unsub();
+    };
+  }, []);
+
+  return { disks, ready };
+}
+
+export function userTitleId(id: string) {
+  return `user:${id}`;
+}
+
+export function parseUserTitleId(id: string): string | null {
+  return id.startsWith("user:") ? id.slice(5) : null;
+}

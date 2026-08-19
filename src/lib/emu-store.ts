@@ -1,8 +1,12 @@
 import { create } from "zustand";
 
+type Pending = { id: string; nonce: number };
+
 type EmuState = {
   loadedId: string | null;
-  pendingLoad: string | null;
+  loadingId: string | null;
+  pendingLoad: Pending | null;
+  loadError: string | null;
   drive1On: boolean;
   drive2On: boolean;
   drive1Name: string;
@@ -14,9 +18,12 @@ type EmuState = {
   focused: boolean;
   status: string;
   booted: boolean;
+  nonce: number;
   requestLoad: (id: string) => void;
   clearPending: () => void;
   setLoaded: (id: string | null, name: string) => void;
+  setLoading: (id: string | null) => void;
+  setLoadError: (error: string | null) => void;
   setDrive: (drive: 1 | 2, on: boolean) => void;
   setPaused: (paused: boolean) => void;
   setColor: (color: boolean) => void;
@@ -30,7 +37,9 @@ type EmuState = {
 
 export const useEmu = create<EmuState>((set) => ({
   loadedId: null,
-  pendingLoad: null as string | null,
+  loadingId: null,
+  pendingLoad: null,
+  loadError: null,
   drive1On: false,
   drive2On: false,
   drive1Name: "Empty",
@@ -42,10 +51,24 @@ export const useEmu = create<EmuState>((set) => ({
   focused: false,
   status: "Powering on…",
   booted: false,
-  requestLoad: (id) => set({ pendingLoad: id }),
+  nonce: 0,
+  requestLoad: (id) =>
+    set((s) => ({
+      pendingLoad: { id, nonce: s.nonce + 1 },
+      nonce: s.nonce + 1,
+      loadError: null,
+    })),
   clearPending: () => set({ pendingLoad: null }),
   setLoaded: (id, name) =>
-    set({ loadedId: id, drive1Name: name, pendingLoad: null }),
+    set({
+      loadedId: id,
+      drive1Name: name,
+      pendingLoad: null,
+      loadingId: null,
+      loadError: null,
+    }),
+  setLoading: (id) => set({ loadingId: id }),
+  setLoadError: (error) => set({ loadError: error, loadingId: null }),
   setDrive: (drive, on) =>
     set(drive === 1 ? { drive1On: on } : { drive2On: on }),
   setPaused: (paused) => set({ paused }),

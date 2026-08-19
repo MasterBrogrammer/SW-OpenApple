@@ -16,7 +16,8 @@ function Login() {
         </Link>
         <h1 className="mt-4 text-xl font-medium tracking-tight">Sign in</h1>
         <p className="mt-2 text-sm leading-relaxed text-muted">
-          Save titles from the FOSS library to your account.
+          Optional. Stars already save in this browser without an account.
+          Sign-in is for the hosted build.
         </p>
         <div className="mt-6 space-y-2">
           {authEnabled ? (

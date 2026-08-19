@@ -114,6 +114,10 @@ export function SoftKeyboard({
           >
             SPACE
           </button>
+          <p className="pt-1 text-center text-[10px] text-muted">
+            Open Apple = Win/⌘ · Closed Apple = Alt · mouse on the CRT is the
+            paddle
+          </p>
         </div>
       ) : null}
     </div>
