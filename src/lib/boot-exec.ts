@@ -4,7 +4,6 @@ import { useEmu } from "@/lib/emu-store";
 export type Prompt = "]" | ">";
 
 export type BootStep = {
-  /** BASIC prompt to wait for before typing. Skip the step if optional and it never appears. */
   wait: Prompt;
   type: string;
   optional?: boolean;
@@ -34,7 +33,6 @@ function lastMeaningfulLine(text: string): string {
 
 export function readPrompt(text: string): Prompt | null {
   const line = lastMeaningfulLine(text);
-  // ROM splash is "APPLE ][" — that is NOT the BASIC prompt.
   if (/APPLE/i.test(line)) return null;
   if (line === "]" || /^\][\s\u007f@]*$/.test(line)) return "]";
   if (line === ">" || /^>[\s\u007f@]*$/.test(line)) return ">";
@@ -49,68 +47,33 @@ function bootError(text: string): string | null {
   return null;
 }
 
-function peek(apple2: Apple2Class, addr: number): number {
-  return apple2.getCPU().read(addr >> 8, addr & 0xff);
+export function invalidateDosHooks(_apple2: Apple2Class) {
+  /* leftover from the $3D0 experiment — Autostart / DOS own this RAM */
 }
 
-function poke(apple2: Apple2Class, addr: number, value: number) {
-  apple2.getCPU().write(addr >> 8, addr & 0xff, value);
-}
-
-/** DOS 3.3 / BASIC.SYSTEM warm-start vector. $4C = JMP once DOS is in RAM. */
-const DOS_WARM = 0x03d0;
-
-/** Clear leftover DOS hooks so we can tell THIS boot actually loaded DOS. */
-export function invalidateDosHooks(apple2: Apple2Class) {
-  poke(apple2, DOS_WARM, 0x00);
-  poke(apple2, 0x03d3, 0x00);
-}
-
-function dosIsHooked(apple2: Apple2Class): boolean {
-  return peek(apple2, DOS_WARM) === 0x4c;
-}
-
-function looksLikeDosScreen(text: string): boolean {
-  const up = text.toUpperCase();
-  return (
-    up.includes("DOS VERSION") ||
-    up.includes("SYSTEM MASTER") ||
-    up.includes("DOS 3.3") ||
-    up.includes("DISK VOLUME")
-  );
-}
-
-/** Drive has spun, gone quiet, and BASIC is back — DOS HELLO finished. */
-async function waitForDosReady(
-  apple2: Apple2Class,
+async function waitForMotor(
   isCancelled: () => boolean,
   timeoutMs: number,
 ): Promise<boolean> {
   const start = Date.now();
-  let sawSpin = useEmu.getState().drive1On;
-  let sawDosText = false;
-
   while (Date.now() - start < timeoutMs) {
     if (isCancelled()) return false;
-    if (useEmu.getState().drive1On) sawSpin = true;
-    const text = screenText(apple2);
-    if (looksLikeDosScreen(text)) sawDosText = true;
-
-    const elapsed = Date.now() - start;
-    const quiet = !useEmu.getState().drive1On;
-    const prompt = readPrompt(text);
-    const hooked = dosIsHooked(apple2);
-    const booted = sawSpin || sawDosText || hooked;
-
-    if (prompt === "]" && quiet && booted && elapsed > 1800) {
-      await sleep(250);
-      if (readPrompt(screenText(apple2)) === "]" && !useEmu.getState().drive1On) {
-        return true;
-      }
-    }
-    await sleep(80);
+    if (useEmu.getState().drive1On) return true;
+    await sleep(40);
   }
-  return readPrompt(screenText(apple2)) === "]";
+  return useEmu.getState().drive1On;
+}
+
+async function waitForMotorOff(isCancelled: () => boolean, timeoutMs: number) {
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    if (isCancelled()) return;
+    if (!useEmu.getState().drive1On) {
+      await sleep(200);
+      if (!useEmu.getState().drive1On) return;
+    }
+    await sleep(50);
+  }
 }
 
 async function waitForPrompt(
@@ -122,25 +85,10 @@ async function waitForPrompt(
   const start = Date.now();
   while (Date.now() - start < timeoutMs) {
     if (isCancelled()) return false;
-    const text = screenText(apple2);
-    if (readPrompt(text) === want) return true;
-    await sleep(120);
+    if (readPrompt(screenText(apple2)) === want) return true;
+    await sleep(80);
   }
-  return false;
-}
-
-async function breakToPrompt(
-  apple2: Apple2Class,
-  want: Prompt,
-  isCancelled: () => boolean,
-): Promise<boolean> {
-  const io = apple2.getIO();
-  io.setKeyBuffer("\u0003");
-  await sleep(500);
-  if (await waitForPrompt(apple2, want, isCancelled, 3000)) return true;
-  io.setKeyBuffer("\u0003");
-  await sleep(500);
-  return waitForPrompt(apple2, want, isCancelled, 3000);
+  return readPrompt(screenText(apple2)) === want;
 }
 
 export async function runBootSteps(
@@ -153,28 +101,37 @@ export async function runBootSteps(
   const needsDos = steps.some((s) => s.wait === "]" && !s.optional);
 
   if (needsDos) {
-    onStatus("Waiting for DOS 3.3 to finish HELLO…");
-    const ready = await waitForDosReady(apple2, isCancelled, 20000);
+    onStatus("Booting DOS 3.3 (Disk II)…");
+    const spinning = await waitForMotor(isCancelled, 6000);
     if (isCancelled()) return;
-    if (!ready) {
-      throw new Error(
-        "The System Master never reached BASIC. Eject, then Insert again.",
-      );
+    if (!spinning) {
+      throw new Error("Disk II never started. Eject, then Insert again.");
     }
+    onStatus("Waiting for HELLO to finish…");
+    await waitForMotorOff(isCancelled, 8000);
+    if (isCancelled()) return;
+    // Break HELLO if it is sitting in a menu; harmless if already at ]
+    io.setKeyBuffer("\u0003");
+    await sleep(500);
   }
 
-  for (const [index, step] of steps.entries()) {
+  for (const step of steps) {
     if (isCancelled()) return;
-    const timeout = step.timeoutMs ?? (index === 0 ? 12000 : 12000);
     onStatus(
       step.wait === ">"
         ? "Waiting for Integer BASIC…"
         : "Waiting for the BASIC prompt…",
     );
-    let ready = await waitForPrompt(apple2, step.wait, isCancelled, timeout);
+    let ready = await waitForPrompt(
+      apple2,
+      step.wait,
+      isCancelled,
+      step.timeoutMs ?? 8000,
+    );
     if (!ready && !step.optional) {
-      onStatus("Breaking into BASIC…");
-      ready = await breakToPrompt(apple2, step.wait, isCancelled);
+      io.setKeyBuffer("\u0003");
+      await sleep(400);
+      ready = await waitForPrompt(apple2, step.wait, isCancelled, 3000);
     }
     if (!ready) {
       if (step.optional) return;
@@ -182,12 +139,11 @@ export async function runBootSteps(
         `The ${step.wait === ">" ? "Integer BASIC >" : "Applesoft ]"} prompt never came up`,
       );
     }
-    if (isCancelled()) return;
     const payload = step.type.endsWith("\r") ? step.type : `${step.type}\r`;
     onStatus(`Typing ${payload.replace(/\r/g, "").trim()}…`);
     io.setKeyBuffer(payload);
     const typed = payload.replace(/\r/g, "").trim();
-    const giveUp = Date.now() + 10000;
+    const giveUp = Date.now() + 8000;
     while (Date.now() < giveUp) {
       if (isCancelled()) return;
       const text = screenText(apple2);
@@ -199,6 +155,6 @@ export async function runBootSteps(
       if (typed && text.toUpperCase().includes(typed.toUpperCase())) break;
       await sleep(80);
     }
-    await sleep(600);
+    await sleep(400);
   }
 }
