@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SoftKeyboard } from "@/components/soft-keyboard";
-import { invalidateDosHooks, runBootSteps, type BootStep } from "@/lib/boot-exec";
+import { runBootSteps, type BootStep } from "@/lib/boot-exec";
 import { getTitle, type Title } from "@/lib/catalog";
 import { useEmu } from "@/lib/emu-store";
 import { pushRecent } from "@/lib/local-prefs";
@@ -436,6 +436,21 @@ function clamp01(n: number) {
   return Math.min(1, Math.max(0, n));
 }
 
+/** Slot firmware at $Cn00, not the IIe internal $Cxxx ROM. */
+function enableSlotRoms(apple2: Apple2Class) {
+  apple2.getCPU().write(0xc0, 0x06, 0x00);
+}
+
+function diskIISignature(apple2: Apple2Class): number {
+  return apple2.getCPU().read(0xc6, 0x01);
+}
+
+/** Same as typing PR#6: run the Disk II boot ROM in slot 6. */
+function jumpToDiskII(apple2: Apple2Class) {
+  enableSlotRoms(apple2);
+  apple2.getCPU().setPC(0xc600);
+}
+
 function clearTextPage(machine: Machine) {
   const cpu = machine.apple2.getCPU();
   for (let addr = 0x400; addr < 0x800; addr++) {
@@ -525,8 +540,8 @@ async function loadTitle(
       io.setSlot(6, emptySlot);
       io.setSlot(7, emptySlot);
     } else if (media.kind === "json") {
+      io.setSlot(7, emptySlot);
       io.setSlot(6, machine.disk2);
-      io.setSlot(7, machine.disk2);
       const raw = await fetchJson<JSONDisk & { writeProtected?: boolean }>(
         media.url,
         title.name,
@@ -539,15 +554,15 @@ async function loadTitle(
       const ok = machine.disk2.setDisk(1, json);
       if (!ok) throw new Error(`Could not decode ${title.name}`);
     } else if (media.kind === "floppy") {
+      io.setSlot(7, emptySlot);
       io.setSlot(6, machine.disk2);
-      io.setSlot(7, machine.disk2);
       const buf = await fetchBuffer(media.url, title.name);
       if (gen !== loadGeneration) return;
       await machine.disk2.setBinary(1, title.name, media.format, buf);
     } else if (media.kind === "bytes") {
       if (media.floppy) {
+        io.setSlot(7, emptySlot);
         io.setSlot(6, machine.disk2);
-        io.setSlot(7, machine.disk2);
         await machine.disk2.setBinary(
           1,
           title.name,
@@ -581,11 +596,23 @@ async function loadTitle(
 
     if (gen !== loadGeneration) return;
     const steps = stepsFor(title);
-    if (steps.some((s) => s.wait === "]" && !s.optional)) {
-      invalidateDosHooks(machine.apple2);
-    }
+    const floppyBoot =
+      media.kind === "json" ||
+      media.kind === "floppy" ||
+      (media.kind === "bytes" && media.floppy);
+
     clearTextPage(machine);
     machine.apple2.reset();
+    enableSlotRoms(machine.apple2);
+    if (floppyBoot) {
+      const sig = diskIISignature(machine.apple2);
+      if (sig !== 0x20) {
+        throw new Error(
+          `Disk II ROM not visible (read $${sig.toString(16).padStart(2, "0")} at $C601)`,
+        );
+      }
+      jumpToDiskII(machine.apple2);
+    }
     useEmu.getState().setPaused(false);
     machine.apple2.run();
     pushRecent(id);
