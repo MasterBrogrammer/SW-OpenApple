@@ -23,7 +23,17 @@ import type DiskII from "js/cards/disk2";
 import type SmartPort from "js/cards/smartport";
 import type { Apple2 as Apple2Class } from "js/apple2";
 import type { JSONDisk } from "js/formats/types";
+import type { Card } from "js/types";
 import { initGamepad } from "js/ui/gamepad";
+
+/** Empty slot that returns 0, not random bytes. Autostart skips it. */
+const emptySlot: Card = {
+  read: () => 0,
+  write: () => {},
+  ioSwitch: () => 0,
+  getState: () => null,
+  setState: () => {},
+};
 
 type Machine = {
   apple2: Apple2Class;
@@ -511,12 +521,12 @@ async function loadTitle(
     machine.smartport.resetBlockDisk(1);
     machine.smartport.resetBlockDisk(2);
 
-    io.setSlot(7, machine.smartport);
-
     if (media.kind === "none") {
-      io.setSlot(6, null);
+      io.setSlot(6, emptySlot);
+      io.setSlot(7, emptySlot);
     } else if (media.kind === "json") {
       io.setSlot(6, machine.disk2);
+      io.setSlot(7, machine.disk2);
       const raw = await fetchJson<JSONDisk & { writeProtected?: boolean }>(
         media.url,
         title.name,
@@ -530,12 +540,14 @@ async function loadTitle(
       if (!ok) throw new Error(`Could not decode ${title.name}`);
     } else if (media.kind === "floppy") {
       io.setSlot(6, machine.disk2);
+      io.setSlot(7, machine.disk2);
       const buf = await fetchBuffer(media.url, title.name);
       if (gen !== loadGeneration) return;
       await machine.disk2.setBinary(1, title.name, media.format, buf);
     } else if (media.kind === "bytes") {
       if (media.floppy) {
         io.setSlot(6, machine.disk2);
+        io.setSlot(7, machine.disk2);
         await machine.disk2.setBinary(
           1,
           title.name,
@@ -543,7 +555,8 @@ async function loadTitle(
           media.data,
         );
       } else {
-        io.setSlot(6, null);
+        io.setSlot(6, emptySlot);
+        io.setSlot(7, machine.smartport);
         await machine.smartport.setBinary(
           1,
           title.name,
@@ -552,7 +565,8 @@ async function loadTitle(
         );
       }
     } else {
-      io.setSlot(6, null);
+      io.setSlot(6, emptySlot);
+      io.setSlot(7, machine.smartport);
       const buf = await fetchBuffer(media.url, title.name);
       if (gen !== loadGeneration) return;
       await machine.smartport.setBinary(1, title.name, media.format, buf);

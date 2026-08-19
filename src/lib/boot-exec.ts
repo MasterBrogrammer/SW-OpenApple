@@ -58,7 +58,7 @@ async function waitForMotor(
   const start = Date.now();
   while (Date.now() - start < timeoutMs) {
     if (isCancelled()) return false;
-    if (useEmu.getState().drive1On) return true;
+    if (useEmu.getState().drive1On || useEmu.getState().drive2On) return true;
     await sleep(40);
   }
   return useEmu.getState().drive1On;
@@ -102,7 +102,10 @@ export async function runBootSteps(
 
   if (needsDos) {
     onStatus("Booting DOS 3.3 (Disk II)…");
-    const spinning = await waitForMotor(isCancelled, 6000);
+    const spinning =
+      (await waitForMotor(isCancelled, 8000)) ||
+      useEmu.getState().drive1On ||
+      useEmu.getState().drive2On;
     if (isCancelled()) return;
     if (!spinning) {
       throw new Error("Disk II never started. Eject, then Insert again.");
