@@ -1,4 +1,5 @@
 import type { Apple2 as Apple2Class } from "js/apple2";
+import { useEmu } from "@/lib/emu-store";
 
 export type Prompt = "]" | ">";
 
@@ -33,6 +34,8 @@ function lastMeaningfulLine(text: string): string {
 
 export function readPrompt(text: string): Prompt | null {
   const line = lastMeaningfulLine(text);
+  // ROM splash is "APPLE ][" — that is NOT the BASIC prompt.
+  if (/APPLE/i.test(line)) return null;
   if (line === "]" || /^\][\s\u007f@]*$/.test(line)) return "]";
   if (line === ">" || /^>[\s\u007f@]*$/.test(line)) return ">";
   return null;
@@ -44,6 +47,58 @@ function bootError(text: string): string | null {
   if (up.includes("SYNTAX ERROR") || up.includes("?SYNTAX")) return "SYNTAX ERROR from the typed command";
   if (up.includes("REENTER")) return "Integer BASIC rejected the line";
   return null;
+}
+
+function peek(apple2: Apple2Class, addr: number): number {
+  return apple2.getCPU().read(addr >> 8, addr & 0xff);
+}
+
+function poke(apple2: Apple2Class, addr: number, value: number) {
+  apple2.getCPU().write(addr >> 8, addr & 0xff, value);
+}
+
+/** DOS 3.3 / BASIC.SYSTEM warm-start vector. $4C = JMP once DOS is in RAM. */
+const DOS_WARM = 0x03d0;
+
+/** Clear leftover DOS hooks so we can tell THIS boot actually loaded DOS. */
+export function invalidateDosHooks(apple2: Apple2Class) {
+  poke(apple2, DOS_WARM, 0x00);
+  poke(apple2, 0x03d3, 0x00);
+}
+
+function dosIsHooked(apple2: Apple2Class): boolean {
+  return peek(apple2, DOS_WARM) === 0x4c;
+}
+
+async function waitForDosHook(
+  apple2: Apple2Class,
+  isCancelled: () => boolean,
+  timeoutMs: number,
+): Promise<boolean> {
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    if (isCancelled()) return false;
+    if (dosIsHooked(apple2)) return true;
+    await sleep(80);
+  }
+  return false;
+}
+
+async function waitForDriveQuiet(
+  isCancelled: () => boolean,
+  timeoutMs: number,
+) {
+  const start = Date.now();
+  let sawSpin = useEmu.getState().drive1On;
+  while (Date.now() - start < timeoutMs) {
+    if (isCancelled()) return;
+    if (useEmu.getState().drive1On) sawSpin = true;
+    if (sawSpin && !useEmu.getState().drive1On) {
+      await sleep(350);
+      if (!useEmu.getState().drive1On) return;
+    }
+    await sleep(60);
+  }
 }
 
 async function waitForPrompt(
@@ -69,11 +124,11 @@ async function breakToPrompt(
 ): Promise<boolean> {
   const io = apple2.getIO();
   io.setKeyBuffer("\u0003");
-  await sleep(400);
-  if (await waitForPrompt(apple2, want, isCancelled, 2500)) return true;
+  await sleep(500);
+  if (await waitForPrompt(apple2, want, isCancelled, 3000)) return true;
   io.setKeyBuffer("\u0003");
-  await sleep(400);
-  return waitForPrompt(apple2, want, isCancelled, 2500);
+  await sleep(500);
+  return waitForPrompt(apple2, want, isCancelled, 3000);
 }
 
 export async function runBootSteps(
@@ -83,13 +138,26 @@ export async function runBootSteps(
   onStatus: (status: string) => void,
 ): Promise<void> {
   const io = apple2.getIO();
+  const needsDos = steps.some((s) => s.wait === "]" && !s.optional);
+
+  if (needsDos) {
+    onStatus("Waiting for DOS to load from disk…");
+    const hooked = await waitForDosHook(apple2, isCancelled, 18000);
+    if (isCancelled()) return;
+    if (!hooked) {
+      throw new Error("DOS did not load. The disk never installed a DOS warm-start vector.");
+    }
+    onStatus("Waiting for the disk to go quiet…");
+    await waitForDriveQuiet(isCancelled, 8000);
+  }
+
   for (const [index, step] of steps.entries()) {
     if (isCancelled()) return;
-    const timeout = step.timeoutMs ?? (index === 0 ? 16000 : 12000);
+    const timeout = step.timeoutMs ?? (index === 0 ? 12000 : 12000);
     onStatus(
       step.wait === ">"
         ? "Waiting for Integer BASIC…"
-        : "Waiting for DOS / Applesoft…",
+        : "Waiting for the BASIC prompt…",
     );
     let ready = await waitForPrompt(apple2, step.wait, isCancelled, timeout);
     if (!ready && !step.optional) {
@@ -102,12 +170,15 @@ export async function runBootSteps(
         `The ${step.wait === ">" ? "Integer BASIC >" : "Applesoft ]"} prompt never came up`,
       );
     }
+    if (needsDos && step.wait === "]" && !dosIsHooked(apple2)) {
+      throw new Error("BASIC came up without DOS — RUN would not see the disk file");
+    }
     if (isCancelled()) return;
     const payload = step.type.endsWith("\r") ? step.type : `${step.type}\r`;
     onStatus(`Typing ${payload.replace(/\r/g, "").trim()}…`);
     io.setKeyBuffer(payload);
     const typed = payload.replace(/\r/g, "").trim();
-    const giveUp = Date.now() + 8000;
+    const giveUp = Date.now() + 10000;
     while (Date.now() < giveUp) {
       if (isCancelled()) return;
       const text = screenText(apple2);
@@ -119,6 +190,6 @@ export async function runBootSteps(
       if (typed && text.toUpperCase().includes(typed.toUpperCase())) break;
       await sleep(80);
     }
-    await sleep(500);
+    await sleep(600);
   }
 }

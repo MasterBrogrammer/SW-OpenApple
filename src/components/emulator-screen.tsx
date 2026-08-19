@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SoftKeyboard } from "@/components/soft-keyboard";
-import { runBootSteps, type BootStep } from "@/lib/boot-exec";
+import { invalidateDosHooks, runBootSteps, type BootStep } from "@/lib/boot-exec";
 import { getTitle, type Title } from "@/lib/catalog";
 import { useEmu } from "@/lib/emu-store";
 import { pushRecent } from "@/lib/local-prefs";
@@ -564,6 +564,10 @@ async function loadTitle(
     );
 
     if (gen !== loadGeneration) return;
+    const steps = stepsFor(title);
+    if (steps.some((s) => s.wait === "]" && !s.optional)) {
+      invalidateDosHooks(machine.apple2);
+    }
     clearTextPage(machine);
     machine.apple2.reset();
     useEmu.getState().setPaused(false);
@@ -577,7 +581,6 @@ async function loadTitle(
     useEmu.getState().setStatus(hint);
     canvas?.focus();
     useEmu.getState().setFocused(true);
-    const steps = stepsFor(title);
     if (steps.length) {
       await runBootSteps(
         machine.apple2,
