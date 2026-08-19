@@ -513,7 +513,9 @@ async function loadTitle(
 
     if (media.kind === "none") {
       io.setSlot(6, null);
+      io.setSlot(7, null);
     } else if (media.kind === "json") {
+      io.setSlot(7, null);
       io.setSlot(6, machine.disk2);
       const raw = await fetchJson<JSONDisk & { writeProtected?: boolean }>(
         media.url,
@@ -527,12 +529,14 @@ async function loadTitle(
       const ok = machine.disk2.setDisk(1, json);
       if (!ok) throw new Error(`Could not decode ${title.name}`);
     } else if (media.kind === "floppy") {
+      io.setSlot(7, null);
       io.setSlot(6, machine.disk2);
       const buf = await fetchBuffer(media.url, title.name);
       if (gen !== loadGeneration) return;
       await machine.disk2.setBinary(1, title.name, media.format, buf);
     } else if (media.kind === "bytes") {
       if (media.floppy) {
+        io.setSlot(7, null);
         io.setSlot(6, machine.disk2);
         await machine.disk2.setBinary(
           1,
@@ -542,6 +546,7 @@ async function loadTitle(
         );
       } else {
         io.setSlot(6, null);
+        io.setSlot(7, machine.smartport);
         await machine.smartport.setBinary(
           1,
           title.name,
@@ -551,6 +556,7 @@ async function loadTitle(
       }
     } else {
       io.setSlot(6, null);
+      io.setSlot(7, machine.smartport);
       const buf = await fetchBuffer(media.url, title.name);
       if (gen !== loadGeneration) return;
       await machine.smartport.setBinary(1, title.name, media.format, buf);
