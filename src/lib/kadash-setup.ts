@@ -1,5 +1,6 @@
 import type DiskII from "js/cards/disk2";
 import type { Apple2 as Apple2Class } from "js/apple2";
+import { asset } from "@/lib/asset";
 import { screenText, waitForText } from "@/lib/boot-exec";
 import { useEmu } from "@/lib/emu-store";
 import type { JSONDisk } from "js/formats/types";
@@ -21,7 +22,7 @@ function spinning() {
 }
 
 async function fetchJson<T>(url: string): Promise<T> {
-  const res = await fetch(url);
+  const res = await fetch(asset(url));
   if (!res.ok) throw new Error(`character disk template failed (${res.status})`);
   return res.json() as Promise<T>;
 }
@@ -46,7 +47,7 @@ async function mountGame(
 
 async function fetchBuffer(url: string): Promise<ArrayBuffer | null> {
   try {
-    const res = await fetch(url);
+    const res = await fetch(asset(url));
     if (!res.ok) return null;
     return res.arrayBuffer();
   } catch {

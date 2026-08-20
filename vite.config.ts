@@ -130,48 +130,58 @@ function authPopupPlugin(): Plugin {
 // `0.0.0.0:8080` is the live-preview contract — don't change host/port.
 // The dev server starts once `src/router.tsx` and `src/routes/` exist — see
 // AGENTS.md § "First scaffold".
-export default defineConfig(({ command, isPreview }) => ({
-  server: {
-    host: "0.0.0.0",
-    port: 8080,
-    strictPort: true,
-  },
-  preview: {
-    host: "127.0.0.1",
-    port: 8081,
-    strictPort: true,
-  },
-  resolve: {
-    tsconfigPaths: true,
-    alias: {
-      js: path.join(root, "vendor/apple2js/js"),
-      json: path.join(root, "vendor/apple2js/json"),
-      "@whscullin/cpu6502": path.join(root, "vendor/cpu6502/js/index.ts"),
+export default defineConfig(({ command, isPreview }) => {
+  const pages = process.env.GITHUB_PAGES === "1";
+  return {
+    base: pages ? "/SW-OpenApple/" : "/",
+    server: {
+      host: "0.0.0.0",
+      port: 8080,
+      strictPort: true,
     },
-  },
-  optimizeDeps: {
-    include: [],
-    exclude: [],
-  },
-  plugins: [
-    pgliteBootstrapPlugin(),
-    // Before tanstackStart so /auth/popup never falls through to the SPA.
-    authPopupPlugin(),
-    // PWA head + ?install=1 tutorial page; runs before Start/Nitro.
-    grokPwaPlugin(),
-    tailwindcss(),
-    tanstackStart(),
-    ...(command === "build" || isPreview
-      ? [
-          nitro({
-            preset: "vercel",
-            // Auto-registers server/middleware/* (the PWA install page +
-            // manifest + head-tag middleware). Nitro v3 defaults serverDir to
-            // false, so removing this silently unwires /?install=1 on deploys.
-            serverDir: "./server",
-          }),
-        ]
-      : []),
-    viteReact(),
-  ],
-}));
+    preview: {
+      host: "127.0.0.1",
+      port: 8081,
+      strictPort: true,
+    },
+    resolve: {
+      tsconfigPaths: true,
+      alias: {
+        js: path.join(root, "vendor/apple2js/js"),
+        json: path.join(root, "vendor/apple2js/json"),
+        "@whscullin/cpu6502": path.join(root, "vendor/cpu6502/js/index.ts"),
+      },
+    },
+    optimizeDeps: {
+      include: [],
+      exclude: [],
+    },
+    plugins: [
+      pgliteBootstrapPlugin(),
+      // Before tanstackStart so /auth/popup never falls through to the SPA.
+      authPopupPlugin(),
+      // PWA head + ?install=1 tutorial page; runs before Start/Nitro.
+      grokPwaPlugin(),
+      tailwindcss(),
+      tanstackStart(
+        pages
+          ? {
+              spa: { enabled: true },
+            }
+          : {},
+      ),
+      ...(!pages && (command === "build" || isPreview)
+        ? [
+            nitro({
+              preset: "vercel",
+              // Auto-registers server/middleware/* (the PWA install page +
+              // manifest + head-tag middleware). Nitro v3 defaults serverDir to
+              // false, so removing this silently unwires /?install=1 on deploys.
+              serverDir: "./server",
+            }),
+          ]
+        : []),
+      viteReact(),
+    ],
+  };
+});

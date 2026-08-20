@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { asset } from "@/lib/asset";
 import { useEmu } from "@/lib/emu-store";
 import { cn } from "@/lib/utils";
 
@@ -17,7 +18,7 @@ export function WozModeBadge() {
 
   return (
     <img
-      src="/wozmode.png"
+      src={asset("/wozmode.png")}
       alt=""
       width={480}
       height={607}

@@ -23,7 +23,13 @@ npm run dev
 
 Then open `http://127.0.0.1:8080`. Port **8080** must be free.
 
-GitHub is the source, not a running IIe. A clickable play-in-browser link needs a host such as Vercel (`npm run build` is already set for that). The Mac Terminal tab stays local-only.
+## Play in a browser
+
+Same idea as Amber Run — GitHub Pages hosts a static build:
+
+**https://masterbrogrammer.github.io/SW-OpenApple/**
+
+The IIe, library, Blank floppy, and Save D1 all run in the browser. The Terminal tab is this Mac’s shell, so it only works when you run OpenApple locally.
 
 ## Library
 

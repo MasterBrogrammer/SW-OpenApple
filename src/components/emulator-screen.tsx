@@ -33,6 +33,7 @@ import {
   saveUserDisk,
   userTitleId,
 } from "@/lib/user-disks";
+import { asset } from "@/lib/asset";
 import { cn } from "@/lib/utils";
 import type DiskII from "js/cards/disk2";
 import type SmartPort from "js/cards/smartport";
@@ -932,13 +933,13 @@ function clearTextPage(machine: Machine) {
 }
 
 async function fetchBuffer(url: string, label: string): Promise<ArrayBuffer> {
-  const res = await fetch(url);
+  const res = await fetch(asset(url));
   if (!res.ok) throw new Error(`${label} failed to load (${res.status})`);
   return res.arrayBuffer();
 }
 
 async function fetchJson<T>(url: string, label: string): Promise<T> {
-  const res = await fetch(url);
+  const res = await fetch(asset(url));
   if (!res.ok) throw new Error(`${label} failed to load (${res.status})`);
   return res.json() as Promise<T>;
 }
