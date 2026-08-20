@@ -1,12 +1,14 @@
-import { useMemo, useRef, useState, type DragEvent } from "react";
-import { FolderOpen, Heart, Search, Trash2, Upload } from "lucide-react";
+import { useEffect, useMemo, useRef, useState, type DragEvent } from "react";
+import { FolderOpen, Heart, Search, Terminal, Trash2, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { HostUplink } from "@/components/host-uplink";
 import {
   CATEGORIES,
   searchTitles,
   type Title,
 } from "@/lib/catalog";
 import { DISK_ACCEPT } from "@/lib/disk-format";
+import { resumeAllAudio } from "@/lib/disk-audio";
 import { useEmu } from "@/lib/emu-store";
 import { pushRecent, readRecent, readStars, toggleStar } from "@/lib/local-prefs";
 import {
@@ -19,14 +21,33 @@ import {
 import { cn } from "@/lib/utils";
 
 const FILTERS = [...CATEGORIES, "Mine"] as const;
+const PANE_KEY = "oa-pane";
+
+function readPane(): "library" | "terminal" {
+  if (typeof window === "undefined") return "library";
+  return window.sessionStorage.getItem(PANE_KEY) === "terminal"
+    ? "terminal"
+    : "library";
+}
 
 export function SoftwareLibrary() {
   const loadedId = useEmu((s) => s.loadedId);
   const loadingId = useEmu((s) => s.loadingId);
   const loadError = useEmu((s) => s.loadError);
   const requestLoad = useEmu((s) => s.requestLoad);
+  const uplinkLive = useEmu((s) => s.uplinkLive);
+  const [pane, setPane] = useState<"library" | "terminal">(readPane);
+  const [termOnce, setTermOnce] = useState(() => readPane() === "terminal");
+
+  function showPane(next: "library" | "terminal") {
+    setPane(next);
+    if (typeof window !== "undefined") {
+      window.sessionStorage.setItem(PANE_KEY, next);
+    }
+    if (next === "terminal") setTermOnce(true);
+  }
   const [query, setQuery] = useState("");
-  const [category, setCategory] = useState<(typeof FILTERS)[number]>("Arcade");
+  const [category, setCategory] = useState<(typeof FILTERS)[number]>("Games");
   const [stars, setStars] = useState<string[]>(() =>
     typeof window === "undefined" ? [] : readStars(),
   );
@@ -38,9 +59,18 @@ export function SoftwareLibrary() {
   const fileRef = useRef<HTMLInputElement>(null);
   const { disks: mine } = useUserDisks();
 
+  useEffect(() => {
+    function onSaved() {
+      showPane("library");
+      setCategory("Mine");
+    }
+    window.addEventListener("oa-disk-saved", onSaved);
+    return () => window.removeEventListener("oa-disk-saved", onSaved);
+  }, []);
+
   const titles = useMemo(() => {
     if (category === "Mine") return [];
-    let list = searchTitles(query, category === "All" ? "All" : category);
+    let list = searchTitles(query, category);
     if (onlyStarred) list = list.filter((t) => stars.includes(t.id));
     if (recent.length) {
       list = [...list].sort((a, b) => {
@@ -56,8 +86,8 @@ export function SoftwareLibrary() {
   }, [query, category, onlyStarred, stars, recent]);
 
   const mineFiltered = useMemo(() => {
-    if (category !== "Mine" && category !== "All") return [];
     const q = query.trim().toLowerCase();
+    if (!q && category !== "Mine") return [];
     return mine.filter((d) => {
       if (onlyStarred && !stars.includes(userTitleId(d.id))) return false;
       if (!q) return true;
@@ -74,26 +104,77 @@ export function SoftwareLibrary() {
     try {
       const imported = await importDiskFiles(Array.from(files));
       const last = imported[imported.length - 1];
-      if (last) boot(userTitleId(last.id));
+      if (last) {
+        setCategory("Mine");
+        boot(userTitleId(last.id));
+      }
     } catch (err) {
       setImportError(err instanceof Error ? err.message : "Could not import that disk");
     }
   }
 
   function boot(id: string) {
+    resumeAllAudio();
     setRecent(pushRecent(id));
     requestLoad(id);
   }
 
   return (
-    <aside className="flex min-h-0 flex-col overflow-hidden rounded-lg bg-surface shadow-[var(--shadow-border)] lg:max-h-full">
-      <div className="border-b border-border px-4 py-3">
+    <aside
+      className="flex min-h-0 flex-col overflow-hidden rounded-lg bg-surface shadow-[var(--shadow-border)] lg:max-h-full"
+      data-library-pane={pane}
+    >
+      <div className="flex shrink-0 border-b border-border">
+        <button
+          type="button"
+          className={cn(
+            "flex h-11 flex-1 items-center justify-center gap-2 text-sm",
+            pane === "library"
+              ? "text-fg shadow-[inset_0_-2px_0_var(--color-accent)]"
+              : "text-muted hover:text-fg",
+          )}
+          onClick={() => showPane("library")}
+        >
+          Library
+        </button>
+        <button
+          type="button"
+          className={cn(
+            "flex h-11 flex-1 items-center justify-center gap-2 text-sm",
+            pane === "terminal"
+              ? "text-fg shadow-[inset_0_-2px_0_var(--color-accent)]"
+              : "text-muted hover:text-fg",
+          )}
+          onClick={() => {
+            showPane("terminal");
+            useEmu.getState().setFocused(false);
+          }}
+        >
+          <Terminal className="size-3.5" />
+          Terminal
+          <span className={cn("uplink-led", uplinkLive && "on")} />
+        </button>
+      </div>
+
+      {termOnce ? (
+        <div
+          className={cn(
+            "min-h-0 flex-1 flex-col",
+            pane === "terminal" ? "flex" : "hidden",
+          )}
+        >
+          <HostUplink />
+        </div>
+      ) : null}
+
+      <div className={cn("border-b border-border px-4 py-3", pane === "terminal" && "hidden")}>
         <div className="flex items-start justify-between gap-2">
           <div>
-            <h2 className="text-sm font-medium">Library</h2>
+            <h2 className="text-sm font-medium">Shelf</h2>
             <p className="mt-1 text-xs leading-relaxed text-muted">
-              Arcade and school-disk classics we can legally ship, plus any{" "}
-              <span className="text-fg">.dsk / .woz</span> you drop in.
+              1982 Penguin arcade, graphic adventures, and the rest we can
+              legally ship. Blank floppy is on the drive bay — SAVE, then Save
+              D1 into Mine.
             </p>
           </div>
           <button
@@ -153,7 +234,7 @@ export function SoftwareLibrary() {
               type="button"
               onClick={() => setCategory(cat)}
               className={cn(
-                "h-8 shrink-0 rounded-full px-3 text-xs",
+                "h-8 shrink-0 rounded-md px-3 text-xs",
                 category === cat
                   ? "bg-accent text-accent-fg"
                   : "bg-raised text-muted hover:text-fg",
@@ -165,8 +246,8 @@ export function SoftwareLibrary() {
         </div>
       </div>
 
-      <ul className="min-h-0 flex-1 overflow-y-auto p-2">
-        {category === "All" || category === "Mine"
+      <ul className={cn("min-h-0 flex-1 overflow-y-auto p-2", pane === "terminal" && "hidden")}>
+        {mineFiltered.length
           ? mineFiltered.map((disk) => (
               <UserRow
                 key={disk.id}
@@ -199,7 +280,7 @@ export function SoftwareLibrary() {
           <li className="px-3 py-8 text-center text-xs text-muted">
             {category === "Mine"
               ? "No disks yet. Open a .dsk or drop one on the screen."
-              : "Nothing matches that search."}
+              : "Nothing on this shelf matches."}
           </li>
         ) : null}
       </ul>

@@ -15,6 +15,7 @@
   --color-danger: #c45c5c;
   --color-border: rgb(232 230 225 / 0.12);
   --color-screen: #050605;
+  --color-woz: #c8f000;
 
   --radius-sm: 6px;
   --radius-md: 10px;
@@ -111,6 +112,139 @@
     rgb(0 0 0 / 0.35) 1px,
     rgb(0 0 0 / 0.35) 2px
   );
+}
+
+.wozmode-badge {
+  opacity: 0;
+  transform: scale(0.96);
+  filter: saturate(0.95);
+  transition:
+    opacity 280ms ease,
+    transform 280ms ease;
+  pointer-events: none;
+  user-select: none;
+}
+
+.wozmode-badge-live {
+  opacity: 1;
+  transform: scale(1);
+  animation: wozmode-flash 2.6s ease-in-out infinite;
+}
+
+@keyframes wozmode-flash {
+  0%,
+  100% {
+    filter: brightness(1) drop-shadow(0 0 4px rgb(200 240 0 / 0.18));
+  }
+  50% {
+    filter: brightness(1.06) drop-shadow(0 0 10px rgb(200 240 0 / 0.32));
+  }
+}
+
+.uplink-led {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 99px;
+  background: var(--color-muted);
+  box-shadow: none;
+  transition:
+    background-color 150ms ease,
+    box-shadow 150ms ease;
+}
+
+.uplink-led.on {
+  background: var(--color-accent);
+  box-shadow: 0 0 7px color-mix(in srgb, var(--color-accent) 70%, transparent);
+}
+
+.uplink-crt {
+  background: var(--color-screen);
+  color: var(--color-accent);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.45;
+  text-shadow: 0 0 8px color-mix(in srgb, var(--color-accent) 32%, transparent);
+  position: relative;
+}
+
+.uplink-crt::after {
+  content: "";
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  background-image: repeating-linear-gradient(
+    to bottom,
+    transparent 0,
+    transparent 1px,
+    rgb(0 0 0 / 0.28) 1px,
+    rgb(0 0 0 / 0.28) 2px
+  );
+}
+
+.uplink-line {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: inherit;
+  font-size: inherit;
+}
+
+.uplink-in {
+  color: var(--color-fg);
+  text-shadow: none;
+}
+
+.uplink-sys {
+  color: var(--color-muted);
+  text-shadow: none;
+}
+
+.uplink-err {
+  color: var(--color-danger);
+  text-shadow: none;
+}
+
+.uplink-grok {
+  color: var(--color-fg);
+  text-shadow: none;
+}
+
+.uplink-wait {
+  opacity: 0.7;
+}
+
+.uplink-input-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--color-screen);
+  border-top: 1px solid var(--color-border);
+  padding: 6px 12px 8px;
+  font-family: var(--font-mono);
+}
+
+.uplink-prompt {
+  color: var(--color-accent);
+  font-size: 12px;
+  line-height: 1;
+}
+
+.uplink-field {
+  flex: 1;
+  min-width: 0;
+  background: transparent;
+  border: 0;
+  outline: none;
+  color: var(--color-fg);
+  font-family: inherit;
+  font-size: 12px;
+  line-height: 1.4;
+  caret-color: var(--color-accent);
+}
+
+.uplink-field:disabled {
+  opacity: 0.5;
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -98,6 +98,46 @@ export async function importDiskFiles(files: File[]): Promise<UserDisk[]> {
   return imported;
 }
 
+export async function saveUserDisk(opts: {
+  id?: string;
+  name: string;
+  filename: string;
+  bytes: ArrayBuffer;
+  format?: UserDisk["format"];
+  kind?: UserDisk["kind"];
+}): Promise<UserDisk> {
+  const copy = opts.bytes.slice(0);
+  const sniffed =
+    sniffDisk(opts.filename, copy.byteLength) ??
+    (opts.kind && opts.format
+      ? { kind: opts.kind, format: opts.format }
+      : null);
+  if (!sniffed) throw new Error("Could not encode that disk image");
+  const db = await openDb();
+  const tx = db.transaction(STORE, "readwrite");
+  const store = tx.objectStore(STORE);
+  const rows = await reqToPromise(
+    store.getAll() as IDBRequest<StoredDisk[]>,
+  );
+  const existing =
+    (opts.id ? rows.find((r) => r.id === opts.id) : undefined) ??
+    rows.find((r) => r.filename === opts.filename);
+  const id = existing?.id ?? opts.id ?? crypto.randomUUID();
+  const meta: UserDisk = {
+    id,
+    name: opts.name,
+    filename: opts.filename,
+    kind: sniffed.kind,
+    format: sniffed.format,
+    size: formatSize(copy.byteLength),
+    byteLength: copy.byteLength,
+    addedAt: existing?.addedAt ?? Date.now(),
+  };
+  await reqToPromise(store.put({ ...meta, bytes: copy }));
+  emit();
+  return meta;
+}
+
 export async function removeUserDisk(id: string): Promise<void> {
   const db = await openDb();
   const tx = db.transaction(STORE, "readwrite");

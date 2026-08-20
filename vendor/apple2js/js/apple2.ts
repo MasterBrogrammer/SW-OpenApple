@@ -180,6 +180,10 @@ export class Apple2 implements Restorable<State>, DebuggerContainer {
                     step = stepMax;
                 }
 
+                // Apply host input (mouse paddle) *before* the CPU runs so
+                // this frame's paddle reads see the current stick, not last frame's.
+                this.tick();
+
                 // Direct CPU steps — Debugger.stepCycles traces every
                 // instruction and a throw there kills rAF, leaving a black CRT.
                 this.cpu.stepCycles(step);
@@ -200,16 +204,23 @@ export class Apple2 implements Restorable<State>, DebuggerContainer {
                 this.stats.cycles = this.cpu.getCycles();
                 this.stats.frames++;
                 this.io.tick();
-                this.tick();
                 processGamepad(this.io);
 
                 if (!this.paused && requestAnimationFrame) {
                     this.runAnimationFrame = requestAnimationFrame(runFn);
                 }
             } catch (err) {
-                console.error('[apple2] run loop stopped', err);
+                console.error('[apple2] run loop', err);
                 this.runAnimationFrame = null;
                 this.runTimer = null;
+                // A throw used to leave the CRT dead and Eject/Reboot inert.
+                if (!this.paused) {
+                    window.setTimeout(() => {
+                        if (!this.paused && !this.runTimer && !this.runAnimationFrame) {
+                            this.run();
+                        }
+                    }, 50);
+                }
             }
         };
         if (requestAnimationFrame) {

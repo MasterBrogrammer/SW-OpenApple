@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { EmulatorScreen } from "@/components/emulator-screen";
 import {
@@ -8,6 +8,8 @@ import {
 } from "@/components/software-library";
 import { UserButton } from "@/lib/auth/gates";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
+import { resumeAllAudio } from "@/lib/disk-audio";
+import { startMcpBridge } from "@/lib/mcp-bridge";
 import { useEmu } from "@/lib/emu-store";
 import { importDiskFiles, userTitleId } from "@/lib/user-disks";
 
@@ -16,8 +18,10 @@ export const Route = createFileRoute("/")({ component: Home });
 function Home() {
   const requestLoad = useEmu((s) => s.requestLoad);
   const [dropError, setDropError] = useState<string | null>(null);
+  useEffect(() => startMcpBridge(), []);
   const drop = useDiskDrop((files) => {
     setDropError(null);
+    resumeAllAudio();
     void importDiskFiles(files)
       .then((imported) => {
         const last = imported[imported.length - 1];

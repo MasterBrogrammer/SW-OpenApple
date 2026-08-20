@@ -192,6 +192,8 @@ export interface Callbacks {
     dirty: (driveNo: DriveNumber, dirty: boolean) => void;
     /** Called when a disk is inserted or removed from the drive. */
     label: (driveNo: DriveNumber, name?: string, side?: string) => void;
+    /** Called when a stepper coil turns on and the head may move. */
+    headStep?: (driveNo: DriveNumber) => void;
 }
 
 interface DriveState {
@@ -379,6 +381,9 @@ export default class DiskII implements Card<State>, MassStorage<NibbleFormat> {
         }
 
         this.curDriver.clampTrack();
+        if (on) {
+            this.callbacks.headStep?.(this.state.driveNo);
+        }
 
         // debug(
         //     'Drive', _drive, 'track', toHex(_cur.track >> 2) + '.' + (_cur.track & 0x3),

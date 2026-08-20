@@ -1,7 +1,14 @@
 import type { Apple2 as Apple2Class } from "js/apple2";
 import { useEmu } from "@/lib/emu-store";
+import {
+  bootError,
+  commandEchoed,
+  looksLikeDos,
+  readPrompt,
+  type Prompt,
+} from "@/lib/boot-parse";
 
-export type Prompt = "]" | ">";
+export type { Prompt };
 
 export type BootStep = {
   wait: Prompt;
@@ -14,7 +21,7 @@ function sleep(ms: number) {
   return new Promise<void>((resolve) => window.setTimeout(resolve, ms));
 }
 
-function screenText(apple2: Apple2Class): string {
+export function screenText(apple2: Apple2Class): string {
   try {
     return apple2.getVideoModes().getText();
   } catch {
@@ -22,33 +29,9 @@ function screenText(apple2: Apple2Class): string {
   }
 }
 
-function lastMeaningfulLine(text: string): string {
-  const lines = text.split(/\n/);
-  for (let i = lines.length - 1; i >= 0; i--) {
-    const line = lines[i].replace(/[\s\u007f]+$/g, "");
-    if (line.trim().length) return line.trim();
-  }
-  return "";
-}
-
-export function readPrompt(text: string): Prompt | null {
-  const line = lastMeaningfulLine(text);
-  if (/APPLE/i.test(line)) return null;
-  if (line === "]" || /^\][\s\u007f@]*$/.test(line)) return "]";
-  if (line === ">" || /^>[\s\u007f@]*$/.test(line)) return ">";
-  return null;
-}
-
-function bootError(text: string): string | null {
-  const up = text.toUpperCase();
-  if (up.includes("FILE NOT FOUND")) return "FILE NOT FOUND — that name is not on this disk";
-  if (up.includes("SYNTAX ERROR") || up.includes("?SYNTAX")) return "SYNTAX ERROR from the typed command";
-  if (up.includes("REENTER")) return "Integer BASIC rejected the line";
-  return null;
-}
-
-export function invalidateDosHooks(_apple2: Apple2Class) {
-  /* leftover from the $3D0 experiment — Autostart / DOS own this RAM */
+function driveSpinning() {
+  const s = useEmu.getState();
+  return s.drive1On || s.drive2On;
 }
 
 async function waitForMotor(
@@ -58,22 +41,29 @@ async function waitForMotor(
   const start = Date.now();
   while (Date.now() - start < timeoutMs) {
     if (isCancelled()) return false;
-    if (useEmu.getState().drive1On || useEmu.getState().drive2On) return true;
+    if (driveSpinning()) return true;
     await sleep(40);
   }
-  return useEmu.getState().drive1On;
+  return driveSpinning();
 }
 
-async function waitForMotorOff(isCancelled: () => boolean, timeoutMs: number) {
+async function waitUntilDosPrompt(
+  apple2: Apple2Class,
+  isCancelled: () => boolean,
+  timeoutMs: number,
+): Promise<"prompt" | "hung" | "fail"> {
   const start = Date.now();
+  let sawBanner = false;
   while (Date.now() - start < timeoutMs) {
-    if (isCancelled()) return;
-    if (!useEmu.getState().drive1On) {
-      await sleep(200);
-      if (!useEmu.getState().drive1On) return;
-    }
-    await sleep(50);
+    if (isCancelled()) return "fail";
+    const text = screenText(apple2);
+    if (looksLikeDos(text)) sawBanner = true;
+    if (readPrompt(text) === "]") return "prompt";
+    await sleep(80);
   }
+  if (readPrompt(screenText(apple2)) === "]") return "prompt";
+  if (sawBanner) return "hung";
+  return "fail";
 }
 
 async function waitForPrompt(
@@ -91,6 +81,22 @@ async function waitForPrompt(
   return readPrompt(screenText(apple2)) === want;
 }
 
+export async function waitForText(
+  apple2: Apple2Class,
+  needle: string,
+  isCancelled: () => boolean,
+  timeoutMs: number,
+): Promise<boolean> {
+  const start = Date.now();
+  const want = needle.toUpperCase();
+  while (Date.now() - start < timeoutMs) {
+    if (isCancelled()) return false;
+    if (screenText(apple2).toUpperCase().includes(want)) return true;
+    await sleep(80);
+  }
+  return screenText(apple2).toUpperCase().includes(want);
+}
+
 export async function runBootSteps(
   apple2: Apple2Class,
   steps: BootStep[],
@@ -102,20 +108,29 @@ export async function runBootSteps(
 
   if (needsDos) {
     onStatus("Booting DOS 3.3 (Disk II)…");
-    const spinning =
-      (await waitForMotor(isCancelled, 8000)) ||
-      useEmu.getState().drive1On ||
-      useEmu.getState().drive2On;
+    const spinning = await waitForMotor(isCancelled, 10000);
     if (isCancelled()) return;
-    if (!spinning) {
+    onStatus("Waiting for DOS 3.3…");
+    const dos = await waitUntilDosPrompt(
+      apple2,
+      isCancelled,
+      spinning ? 14000 : 4000,
+    );
+    if (isCancelled()) return;
+    if (dos === "fail" && !spinning) {
       throw new Error("Disk II never started. Eject, then Insert again.");
     }
-    onStatus("Waiting for HELLO to finish…");
-    await waitForMotorOff(isCancelled, 8000);
-    if (isCancelled()) return;
-    // Break HELLO if it is sitting in a menu; harmless if already at ]
-    io.setKeyBuffer("\u0003");
-    await sleep(500);
+    if (dos === "hung" || (dos === "fail" && spinning)) {
+      // HELLO on this System Master is a II+ Integer-card loader and can
+      // sit on that banner forever on an Enhanced IIe. Break it once.
+      onStatus("Breaking HELLO…");
+      io.setKeyBuffer("\u0003");
+      await sleep(500);
+      const ready = await waitForPrompt(apple2, "]", isCancelled, 4000);
+      if (!ready && dos === "fail") {
+        throw new Error("DOS 3.3 never reached the ] prompt");
+      }
+    }
   }
 
   for (const step of steps) {
@@ -143,9 +158,9 @@ export async function runBootSteps(
       );
     }
     const payload = step.type.endsWith("\r") ? step.type : `${step.type}\r`;
-    onStatus(`Typing ${payload.replace(/\r/g, "").trim()}…`);
-    io.setKeyBuffer(payload);
     const typed = payload.replace(/\r/g, "").trim();
+    onStatus(`Typing ${typed}…`);
+    io.setKeyBuffer(payload);
     const giveUp = Date.now() + 8000;
     while (Date.now() < giveUp) {
       if (isCancelled()) return;
@@ -155,9 +170,24 @@ export async function runBootSteps(
         if (step.optional) return;
         throw new Error(err);
       }
-      if (typed && text.toUpperCase().includes(typed.toUpperCase())) break;
+      if (commandEchoed(text, step.wait, typed)) break;
       await sleep(80);
     }
-    await sleep(400);
+    if (/^RUN\b/i.test(typed)) {
+      const leave = Date.now() + 2500;
+      while (Date.now() < leave) {
+        if (isCancelled()) return;
+        const text = screenText(apple2);
+        const err = bootError(text);
+        if (err) {
+          if (step.optional) return;
+          throw new Error(err);
+        }
+        if (readPrompt(text) !== step.wait) break;
+        await sleep(80);
+      }
+    } else {
+      await sleep(400);
+    }
   }
 }

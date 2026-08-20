@@ -42,10 +42,16 @@ export function processGamepad(io: Apple2IO) {
     if (!gamepad) {
         return;
     }
-    const x = (gamepad.axes[0] * 1.414 + 1) / 2.0;
-    const y = (gamepad.axes[1] * 1.414 + 1) / 2.0;
-    io.paddle(0, flipX ? 1.0 - x : x);
-    io.paddle(1, flipY ? 1.0 - y : y);
+    // Idle sticks sit at 0,0 which would otherwise write paddle 0.5 every
+    // frame and fight the mouse (~16ms snap-back = "lag").
+    const ax = gamepad.axes[0] ?? 0;
+    const ay = gamepad.axes[1] ?? 0;
+    if (Math.abs(ax) > 0.18 || Math.abs(ay) > 0.18) {
+        const x = (ax * 1.414 + 1) / 2.0;
+        const y = (ay * 1.414 + 1) / 2.0;
+        io.paddle(0, flipX ? 1.0 - x : x);
+        io.paddle(1, flipY ? 1.0 - y : y);
+    }
     for (let idx = 0; idx < gamepad.buttons.length; idx++) {
         const val = gamepadMap[idx];
         if (val !== undefined) {

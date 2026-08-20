@@ -23,13 +23,18 @@ npm run dev
 
 Then open `http://127.0.0.1:8080`. Port **8080** must be free.
 
+GitHub is the source, not a running IIe. A clickable play-in-browser link needs a host such as Vercel (`npm run build` is already set for that). The Mac Terminal tab stays local-only.
+
 ## Library
 
 The bundled library is only titles we can legally ship:
 
-- **Arcade / school-disk:** Little Brick Out (Woz), Apple Trek, Animals, Painter, Tom Bombem, MazezaM
+- **Arcade / school-disk:** Little Brick Out (Woz), Animals, Painter, Tom Bombem, MazezaM
+- **Penguin / Polarware freeware:** Pie Man, Spy’s Demise, Transylvania, Sword of Kadash, and the rest listed in `public/disks/FOSS-DISKS.txt`
 - **Adventure:** Mystery House, Eamon, Colossal Cave, Beneath Apple Manor, Silvern Castle
-- **Creative / system / workshop:** Apple Writer, Electric Duet, DOS 3.3, ProDOS, A2DeskTop, …
+- **Creative / system / workshop:** Apple Writer, Electric Duet, DOS 3.3, ProDOS, A2DeskTop, Blank DOS 3.3 (`SAVE` then **Save D1** into Mine)
+
+**Terminal** (next to Library) is a local zsh on this machine. Type `grok` to talk. It will not run on a hosted URL.
 
 **Choplifter, Karateka, Lode Runner, Oregon Trail, Pac-Man, Donkey Kong, etc.** are still copyrighted. OpenApple will not bundle them.
 
