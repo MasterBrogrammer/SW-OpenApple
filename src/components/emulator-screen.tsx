@@ -390,7 +390,14 @@ function bindOpenerInput(machine: Machine | null) {
   };
 }
 
-export function EmulatorScreen() {
+export function EmulatorScreen({
+  chrome = "full",
+}: {
+  /** full = desktop toolbar; minimal = CRT + soft keyboard for mobile shell. */
+  chrome?: "full" | "minimal";
+} = {}) {
+  const minimal = chrome === "minimal";
+
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const machineRef = useRef<Machine | null>(null);
   const popoutRef = useRef<Window | null>(null);
@@ -657,10 +664,15 @@ export function EmulatorScreen() {
 
   return (
     <section
-      className="flex h-full min-h-0 flex-col rounded-lg bg-surface p-3 shadow-[var(--shadow-border)] sm:p-4"
+      className={
+        minimal
+          ? "flex h-full min-h-0 flex-col"
+          : "flex h-full min-h-0 flex-col rounded-lg bg-surface p-3 shadow-[var(--shadow-border)] sm:p-4"
+      }
       data-loaded-id={loadedId ?? ""}
       data-emu-status={emuStatus}
       data-boot-phase={bootPhase}
+      data-chrome={chrome}
     >
       <div className="flex min-h-0 flex-1">
       <div className="screen-stage min-w-0 flex-1">
@@ -722,11 +734,14 @@ export function EmulatorScreen() {
         ) : null}
         </div>
       </div>
+      {!minimal ? (
       <aside className="flex w-20 shrink-0 items-end justify-center pb-1 pl-1 sm:w-24">
         <WozModeBadge />
       </aside>
+      ) : null}
       </div>
 
+      {!minimal ? (
       <div className="mt-3 flex shrink-0 flex-col gap-2">
         <div className="flex flex-wrap items-center gap-3">
           <DriveBay
@@ -933,6 +948,7 @@ export function EmulatorScreen() {
         </div>
         </div>
       </div>
+      ) : null}
 
       <SoftKeyboard
         onKey={(code) => machineRef.current?.apple2.getIO().keyDown(code)}

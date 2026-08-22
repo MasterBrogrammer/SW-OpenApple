@@ -1,0 +1,115 @@
+import { Power, Volume2, VolumeX } from "lucide-react";
+import { MobileTap } from "@/components/mobile-play-shell";
+import { SoftwareLibrary } from "@/components/software-library";
+import { BOOT_WITH } from "@/lib/catalog";
+import { resumeAllAudio } from "@/lib/disk-audio";
+import { useEmu } from "@/lib/emu-store";
+import { writeVolume } from "@/lib/local-prefs";
+import { cn } from "@/lib/utils";
+
+/** Thin Apple adapter for the shared mobile chrome sheet. */
+export function MobileAppleChrome() {
+  const muted = useEmu((s) => s.muted);
+  const volume = useEmu((s) => s.volume);
+  const status = useEmu((s) => s.status);
+  const loadedId = useEmu((s) => s.loadedId);
+  const loadingId = useEmu((s) => s.loadingId);
+  const bootPhase = useEmu((s) => s.bootPhase);
+  const drive1Name = useEmu((s) => s.drive1Name);
+  const drive1On = useEmu((s) => s.drive1On);
+
+  return (
+    <div className="flex flex-col gap-3 pt-1">
+      <p className="truncate text-xs text-muted" title={status}>
+        {status}
+      </p>
+
+      <div className="flex flex-wrap items-center gap-2">
+        <span
+          className="inline-flex min-h-11 min-w-0 flex-1 items-center gap-2 rounded-md bg-raised px-3 font-mono text-[11px] text-muted"
+          title="Drive 1"
+        >
+          <span
+            className={cn(
+              "size-2 shrink-0 rounded-full",
+              drive1On
+                ? "bg-accent shadow-[0_0_8px_var(--color-accent)]"
+                : "bg-border",
+            )}
+          />
+          <span className="shrink-0 text-[10px] tracking-wide uppercase">D1</span>
+          <span className="truncate text-fg">{drive1Name}</span>
+        </span>
+        <MobileTap
+          label="Eject / reset"
+          onClick={() => {
+            resumeAllAudio();
+            useEmu.getState().requestEject();
+          }}
+        >
+          <Power className="size-4" />
+          Reset
+        </MobileTap>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2">
+        <MobileTap
+          label={muted ? "Unmute" : "Mute"}
+          active={!muted}
+          onClick={() => useEmu.getState().setMuted(!muted)}
+        >
+          {muted ? <VolumeX className="size-4" /> : <Volume2 className="size-4" />}
+        </MobileTap>
+        <label className="flex h-11 min-w-0 flex-1 items-center gap-2 rounded-md bg-raised px-3">
+          <span className="sr-only">Volume</span>
+          <input
+            type="range"
+            min={0}
+            max={100}
+            step={1}
+            value={volume}
+            aria-label="Volume"
+            className="h-2 w-full min-w-0 cursor-pointer appearance-none rounded-full bg-border accent-accent"
+            onChange={(event) => {
+              const next = Number(event.target.value);
+              useEmu.getState().setVolume(next);
+              writeVolume(next);
+              resumeAllAudio();
+            }}
+          />
+          <span className="w-8 shrink-0 font-mono text-[11px] tabular-nums text-muted">
+            {volume}%
+          </span>
+        </label>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-[10px] tracking-wide text-muted uppercase">Boot</span>
+        {BOOT_WITH.map((os) => {
+          const active =
+            os.id === "applesoft"
+              ? loadedId === null && bootPhase === "running"
+              : loadedId === os.id;
+          return (
+            <MobileTap
+              key={os.id}
+              label={`Boot ${os.label}`}
+              active={active}
+              onClick={() => {
+                resumeAllAudio();
+                useEmu.getState().requestLoad(os.id);
+              }}
+              className={cn(loadingId === os.id && "opacity-60")}
+            >
+              {os.label}
+            </MobileTap>
+          );
+        })}
+      </div>
+
+      <div className="min-h-[40vh] overflow-hidden rounded-md border border-border">
+        <SoftwareLibrary />
+      </div>
+    </div>
+  );
+}
