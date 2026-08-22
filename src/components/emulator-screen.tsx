@@ -1,4 +1,4 @@
-import { useEffect, useRef, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
   Contrast,
   ArrowLeftRight,
@@ -6,6 +6,7 @@ import {
   Monitor,
   Power,
   Pause,
+  PictureInPicture2,
   Play,
   RotateCcw,
   Save,
@@ -20,10 +21,18 @@ import { runBootSteps, screenText, type BootStep } from "@/lib/boot-exec";
 import { readPrompt } from "@/lib/boot-parse";
 import { BOOT_WITH, floppySides, getTitle, type Title } from "@/lib/catalog";
 import { createDiskAudio, resumeAllAudio, type DiskAudio } from "@/lib/disk-audio";
+import {
+  attachPopout,
+  bindPopoutMachine,
+  openCrtPopout,
+  popoutWindow,
+  stopPopout,
+} from "@/lib/crt-popout";
 import { useEmu } from "@/lib/emu-store";
-import { pushRecent } from "@/lib/local-prefs";
+import { pushRecent, readVolume, writeVolume } from "@/lib/local-prefs";
 import {
   applyPaddles,
+  notePaddleNorm,
   notePointerOnCanvas,
   resetPaddlePointer,
 } from "@/lib/paddle-input";
@@ -62,7 +71,9 @@ type Machine = {
 
 type AudioHandle = {
   resume: () => void;
+  reattach: (win: Window) => void;
   setMuted: (muted: boolean) => void;
+  setVolume: (level: number) => void;
   close: () => void;
 };
 
@@ -355,12 +366,36 @@ async function flipDrive(machine: Machine, n: 1 | 2) {
 declare global {
   interface Window {
     __oa?: Machine;
+    __oaInput?: {
+      keyDown: (code: number) => void;
+      keyUp: () => void;
+      buttonDown: (n: number) => void;
+      buttonUp: (n: number) => void;
+      pointer: (x: number, y: number) => void;
+    };
   }
+}
+
+function bindOpenerInput(machine: Machine | null) {
+  if (!machine) {
+    delete window.__oaInput;
+    return;
+  }
+  window.__oaInput = {
+    keyDown: (code) => machine.apple2.getIO().keyDown(code),
+    keyUp: () => machine.apple2.getIO().keyUp(),
+    buttonDown: (n) => machine.apple2.getIO().buttonDown(n as 0 | 1),
+    buttonUp: (n) => machine.apple2.getIO().buttonUp(n as 0 | 1),
+    pointer: (x, y) => notePaddleNorm(x, y),
+  };
 }
 
 export function EmulatorScreen() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const machineRef = useRef<Machine | null>(null);
+  const popoutRef = useRef<Window | null>(null);
+  const popoutCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const [poppedOut, setPoppedOut] = useState(false);
   const pending = useEmu((s) => s.pendingLoad);
   const pendingNonce = pending?.nonce ?? 0;
   const paused = useEmu((s) => s.paused);
@@ -368,6 +403,7 @@ export function EmulatorScreen() {
   const scanlines = useEmu((s) => s.scanlines);
   const invert = useEmu((s) => s.invert);
   const muted = useEmu((s) => s.muted);
+  const volume = useEmu((s) => s.volume);
   const focused = useEmu((s) => s.focused);
   const drive1On = useEmu((s) => s.drive1On);
   const drive2On = useEmu((s) => s.drive2On);
@@ -398,6 +434,20 @@ export function EmulatorScreen() {
         }
         machineRef.current = machine;
         window.__oa = machine;
+        bindOpenerInput(machine);
+        const vol = readVolume();
+        useEmu.getState().setVolume(vol);
+        machine.audio.setVolume(vol / 100);
+        machine.diskSfx.setVolume(vol / 100);
+        bindPopoutMachine(() => machineRef.current);
+        const live = popoutWindow();
+        if (live) {
+          const c = live.document.querySelector("canvas.apple-screen");
+          if (c && c.nodeName === "CANVAS") {
+            attachPopout(live, c as HTMLCanvasElement);
+            setPoppedOut(true);
+          }
+        }
         const want =
           useEmu.getState().pendingLoad?.id ??
           useEmu.getState().loadedId ??
@@ -422,6 +472,7 @@ export function EmulatorScreen() {
         machineRef.current = null;
       }
       if (window.__oa) delete window.__oa;
+      bindOpenerInput(null);
     };
   }, []);
 
@@ -450,7 +501,29 @@ export function EmulatorScreen() {
 
   useEffect(() => {
     machineRef.current?.audio.setMuted(muted);
+    machineRef.current?.diskSfx.setMuted(muted);
   }, [muted]);
+
+  useEffect(() => {
+    const level = volume / 100;
+    machineRef.current?.audio.setVolume(level);
+    machineRef.current?.diskSfx.setVolume(level);
+  }, [volume]);
+
+  useEffect(() => {
+    const win = popoutRef.current;
+    if (!win || win.closed) return;
+    win.postMessage(
+      {
+        type: "oa-display-style",
+        color,
+        scanlines,
+        invert,
+      },
+      window.location.origin,
+    );
+  }, [color, scanlines, invert, poppedOut]);
+
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
@@ -487,6 +560,98 @@ export function EmulatorScreen() {
       window.removeEventListener("keyup", onKeyUp);
     };
   }, []);
+
+  function hostAudio(win: Window) {
+    const m = machineRef.current;
+    m?.audio.reattach(win);
+    m?.diskSfx.reattach(win);
+  }
+
+  function dockDisplay() {
+    const win = popoutRef.current;
+    stopPopout();
+    hostAudio(window);
+    popoutCanvasRef.current = null;
+    if (win && !win.closed) {
+      try {
+        win.postMessage({ type: "oa-display-close" }, window.location.origin);
+        win.close();
+      } catch {
+        /* */
+      }
+    }
+    popoutRef.current = null;
+    setPoppedOut(false);
+  }
+
+  function popOutDisplay() {
+    resumeAllAudio();
+    if (popoutRef.current && !popoutRef.current.closed) {
+      popoutRef.current.focus();
+      return;
+    }
+    const win = openCrtPopout();
+    if (!win) {
+      useEmu.getState().setStatus("Allow pop-ups to pop out the CRT");
+      return;
+    }
+    popoutRef.current = win;
+    const origin = window.location.origin;
+    const onMsg = (event: MessageEvent) => {
+      if (event.origin !== origin) return;
+      const type = (event.data as { type?: string } | null)?.type;
+      if (type === "oa-display-ready") {
+        const attach = () => {
+          const canvas = win.document.querySelector("canvas.apple-screen");
+          if (!canvas || canvas.nodeName !== "CANVAS") return false;
+          popoutCanvasRef.current = canvas as HTMLCanvasElement;
+          bindPopoutMachine(() => machineRef.current);
+          attachPopout(win, canvas as HTMLCanvasElement);
+          win.postMessage(
+            {
+              type: "oa-display-style",
+              color: useEmu.getState().color,
+              scanlines: useEmu.getState().scanlines,
+              invert: useEmu.getState().invert,
+            },
+            origin,
+          );
+          return true;
+        };
+        if (!attach()) {
+          let tries = 0;
+          const retry = window.setInterval(() => {
+            tries += 1;
+            if (attach() || tries > 40) window.clearInterval(retry);
+          }, 50);
+        }
+        setPoppedOut(true);
+      }
+      if (type === "oa-display-gone") {
+        window.removeEventListener("message", onMsg);
+        stopPopout();
+        hostAudio(window);
+        popoutCanvasRef.current = null;
+        popoutRef.current = null;
+        setPoppedOut(false);
+      }
+    };
+    window.addEventListener("message", onMsg);
+    const poll = window.setInterval(() => {
+      if (!popoutRef.current || popoutRef.current.closed) {
+        window.clearInterval(poll);
+        window.removeEventListener("message", onMsg);
+        stopPopout();
+        hostAudio(window);
+        popoutCanvasRef.current = null;
+        popoutRef.current = null;
+        setPoppedOut(false);
+      }
+    }, 400);
+    win.addEventListener("load", () => {
+      win.document.title = "SW-OpenApple display";
+    });
+  }
 
   const emuStatus = booted && loadedId ? "ready" : booted ? "on" : "loading";
 
@@ -705,6 +870,37 @@ export function EmulatorScreen() {
           >
             {muted ? <VolumeX className="size-4" /> : <Volume2 className="size-4" />}
           </IconBtn>
+          <label className="flex h-10 items-center gap-2 pr-1" title="Volume">
+            <input
+              type="range"
+              min={0}
+              max={100}
+              step={1}
+              value={volume}
+              aria-label="Volume"
+              className="h-2 w-24 cursor-pointer appearance-none rounded-full bg-raised accent-accent"
+              onChange={(event) => {
+                const next = Number(event.target.value);
+                useEmu.getState().setVolume(next);
+                writeVolume(next);
+                machineRef.current?.audio.resume();
+                machineRef.current?.diskSfx.resume();
+              }}
+            />
+            <span className="w-8 font-mono text-[11px] tabular-nums text-muted">
+              {volume}%
+            </span>
+          </label>
+          <IconBtn
+            label={poppedOut ? "Display is popped out" : "Pop out display"}
+            onClick={() => {
+              resumeAllAudio();
+              if (poppedOut) dockDisplay();
+              else popOutDisplay();
+            }}
+          >
+            <PictureInPicture2 className={cn("size-4", poppedOut && "text-accent")} />
+          </IconBtn>
           <IconBtn
             label={paused ? "Run" : "Pause"}
             onClick={() => {
@@ -894,7 +1090,11 @@ async function boot(canvas: HTMLCanvasElement): Promise<Machine> {
   apple2.getVideoModes().scanlines(useEmu.getState().scanlines);
 
   const audio = attachAudio(io);
+  const vol = useEmu.getState().volume / 100;
   audio.setMuted(useEmu.getState().muted);
+  audio.setVolume(vol);
+  diskSfx.setMuted(useEmu.getState().muted);
+  diskSfx.setVolume(vol);
   initGamepad();
 
   return { apple2, disk2, smartport, audio, diskSfx };
@@ -1358,18 +1558,47 @@ function attachAudio(io: {
   sampleRate: (rate: number, size: number) => void;
   addSampleListener: (cb: (sample: number[]) => void) => void;
 }): AudioHandle {
-  let muted = true;
+  let muted = false;
+  // 1-bit click, not SID. C64 needed 0.728 SID trim; that would clip this.
+  const SPEAKER_TRIM = 0.22;
+  let volume = 0.5;
   let ctx: AudioContext | null = null;
   let node: ScriptProcessorNode | null = null;
+  let master: GainNode | null = null;
+  let host: Window = window;
   const queue: number[][] = [];
+  let hooked = false;
 
-  try {
-    ctx = new AudioContext({ sampleRate: 44000 });
-    io.sampleRate(ctx.sampleRate, 1024);
-    node = ctx.createScriptProcessor(1024, 1, 1);
+  function applyGain() {
+    if (!master || !ctx) return;
+    master.gain.cancelScheduledValues(ctx.currentTime);
+    master.gain.setTargetAtTime(
+      muted ? 0 : SPEAKER_TRIM * volume,
+      ctx.currentTime,
+      0.04,
+    );
+  }
+
+  function graphWindow(): Window {
+    return host && !host.closed ? host : window;
+  }
+
+  function hookListener() {
+    if (hooked) return;
+    hooked = true;
     io.addSampleListener((sample) => {
       if (!muted && queue.length < 10) queue.push(sample);
     });
+  }
+
+  function connectGraph() {
+    const w = graphWindow();
+    const AC =
+      w.AudioContext ||
+      (w as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+    ctx = new AC({ sampleRate: 44000 });
+    io.sampleRate(ctx.sampleRate, 1024);
+    node = ctx.createScriptProcessor(1024, 1, 1);
     node.onaudioprocess = (event) => {
       const out = event.outputBuffer.getChannelData(0);
       const sample = queue.shift();
@@ -1381,18 +1610,49 @@ function attachAudio(io: {
       for (let i = 0; i < n; i++) out[i] = sample[i] ?? 0;
       for (let i = n; i < out.length; i++) out[i] = 0;
     };
-    node.connect(ctx.destination);
+    master = ctx.createGain();
+    applyGain();
+    master.connect(ctx.destination);
+    node.connect(master);
+    hookListener();
+  }
+
+  try {
+    connectGraph();
   } catch {
     /* audio optional */
   }
 
   return {
+    reattach: (win: Window) => {
+      host = win && !win.closed ? win : window;
+      try {
+        node?.disconnect();
+        void ctx?.close();
+      } catch {
+        /* */
+      }
+      node = null;
+      master = null;
+      ctx = null;
+      try {
+        connectGraph();
+        void ctx?.resume();
+      } catch {
+        /* */
+      }
+    },
     resume: () => {
       void ctx?.resume();
     },
     setMuted: (next) => {
       muted = next;
       if (next) queue.length = 0;
+      applyGain();
+    },
+    setVolume: (level) => {
+      volume = Math.min(1, Math.max(0, level));
+      applyGain();
     },
     close: () => {
       try {

@@ -57,6 +57,7 @@ export class Apple2 implements Restorable<State>, DebuggerContainer {
 
     private runTimer: number | null = null;
     private runAnimationFrame: number | null = null;
+    private animationWindow: Window = window;
     private cpu: CPU6502;
 
     private gr: LoresPage;
@@ -206,8 +207,8 @@ export class Apple2 implements Restorable<State>, DebuggerContainer {
                 this.io.tick();
                 processGamepad(this.io);
 
-                if (!this.paused && requestAnimationFrame) {
-                    this.runAnimationFrame = requestAnimationFrame(runFn);
+                if (!this.paused && this.animationWindow.requestAnimationFrame) {
+                    this.runAnimationFrame = this.animationWindow.requestAnimationFrame(runFn);
                 }
             } catch (err) {
                 console.error('[apple2] run loop', err);
@@ -223,11 +224,23 @@ export class Apple2 implements Restorable<State>, DebuggerContainer {
                 }
             }
         };
-        if (requestAnimationFrame) {
-            this.runAnimationFrame = requestAnimationFrame(runFn);
+        if (this.animationWindow.requestAnimationFrame) {
+            this.runAnimationFrame = this.animationWindow.requestAnimationFrame(runFn);
         } else {
             this.runTimer = window.setInterval(runFn, interval);
         }
+    }
+
+    setAnimationWindow(win: Window | null) {
+        const next = win && !win.closed ? win : window;
+        if (next === this.animationWindow) return;
+        const keepGoing = !this.paused;
+        if (this.runAnimationFrame != null) {
+            this.animationWindow.cancelAnimationFrame(this.runAnimationFrame);
+            this.runAnimationFrame = null;
+        }
+        this.animationWindow = next;
+        if (keepGoing) this.run();
     }
 
     stop() {
@@ -236,7 +249,7 @@ export class Apple2 implements Restorable<State>, DebuggerContainer {
             clearInterval(this.runTimer);
         }
         if (this.runAnimationFrame) {
-            cancelAnimationFrame(this.runAnimationFrame);
+            this.animationWindow.cancelAnimationFrame(this.runAnimationFrame);
         }
         this.runTimer = null;
         this.runAnimationFrame = null;

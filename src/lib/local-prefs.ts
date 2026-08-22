@@ -1,5 +1,6 @@
 const STARS_KEY = "oa-stars";
 const RECENT_KEY = "oa-recent";
+const VOLUME_KEY = "oa-volume";
 
 function readList(key: string): string[] {
   try {
@@ -40,4 +41,24 @@ export function pushRecent(id: string): string[] {
   const next = [id, ...readRecent().filter((x) => x !== id)].slice(0, 12);
   writeList(RECENT_KEY, next);
   return next;
+}
+
+export function readVolume(): number {
+  try {
+    const raw = localStorage.getItem(VOLUME_KEY);
+    if (raw == null) return 50;
+    const n = Number(raw);
+    if (!Number.isFinite(n)) return 50;
+    return Math.min(100, Math.max(0, Math.round(n)));
+  } catch {
+    return 50;
+  }
+}
+
+export function writeVolume(n: number) {
+  try {
+    localStorage.setItem(VOLUME_KEY, String(Math.min(100, Math.max(0, Math.round(n)))));
+  } catch {
+    /* */
+  }
 }

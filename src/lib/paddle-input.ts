@@ -19,8 +19,12 @@ export function notePointerOnCanvas(
 ) {
   const r = canvas.getBoundingClientRect();
   if (r.width <= 0 || r.height <= 0) return;
-  targetX = clamp01((clientX - r.left) / r.width);
-  targetY = clamp01((clientY - r.top) / r.height);
+  notePaddleNorm((clientX - r.left) / r.width, (clientY - r.top) / r.height);
+}
+
+export function notePaddleNorm(x: number, y: number) {
+  targetX = clamp01(x);
+  targetY = clamp01(y);
   fromPointer = true;
 }
 

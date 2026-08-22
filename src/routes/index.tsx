@@ -65,7 +65,7 @@ function Header() {
           <span className="grid size-8 place-items-center rounded-md bg-raised font-mono text-sm font-semibold text-accent shadow-[inset_0_0_0_1px_var(--color-border)]">
             ][
           </span>
-          <span className="font-medium tracking-tight text-fg">OpenApple</span>
+          <span className="font-medium tracking-tight text-fg">SW-OpenApple</span>
         </Link>
         <span className="hidden text-xs text-muted sm:inline">
           Enhanced IIe · drop a .dsk to play

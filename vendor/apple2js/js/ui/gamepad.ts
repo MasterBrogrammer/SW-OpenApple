@@ -2,6 +2,11 @@ import Apple2IO from '../apple2io';
 import { BUTTON, ButtonType, GamepadConfiguration } from './types';
 
 export let gamepad: Gamepad | null = null;
+let padNavigator: Navigator | null = null;
+
+export function setGamepadNavigator(nav: Navigator | null) {
+    padNavigator = nav;
+}
 
 const DEFAULT_GAMEPAD: GamepadConfiguration = {
     A: 0,
@@ -38,7 +43,8 @@ export function processGamepad(io: Apple2IO) {
         return;
     }
     // Always use the first gamepad
-    gamepad = navigator.getGamepads()[0];
+    const n = padNavigator ?? navigator;
+    gamepad = n.getGamepads()[0];
     if (!gamepad) {
         return;
     }

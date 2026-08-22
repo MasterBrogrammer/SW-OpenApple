@@ -7,6 +7,9 @@ export type DiskAudio = {
   seek: () => void;
   whoosh: () => void;
   resume: () => void;
+  reattach: (win: Window) => void;
+  setVolume: (level: number) => void;
+  setMuted: (muted: boolean) => void;
   close: () => void;
 };
 
@@ -31,14 +34,52 @@ export function createDiskAudio(): DiskAudio {
   let lastSeek = 0;
   let lastWhoosh = 0;
   let closed = false;
+  let host: Window = window;
+  // Mix at slider 100%. Today's fixed master was 0.3. Slider 50% => 0.15.
+  const DISK_TRIM = 0.3;
+  let volume = 0.5;
+  let muted = false;
+
+  function applyMaster() {
+    if (!master || !ctx) return;
+    master.gain.cancelScheduledValues(ctx.currentTime);
+    master.gain.setTargetAtTime(
+      muted ? 0 : DISK_TRIM * volume,
+      ctx.currentTime,
+      0.04,
+    );
+  }
+
+
+  function graphWindow(): Window {
+    return host && !host.closed ? host : window;
+  }
+
+  function teardownGraph() {
+    try {
+      void ctx?.close();
+    } catch {
+      /* */
+    }
+    ctx = null;
+    master = null;
+    dry = null;
+    clickWet = null;
+    motorGain = null;
+    clickBuf = null;
+  }
 
   function ensure(): AudioContext | null {
     if (closed) return null;
     if (ctx) return ctx;
     try {
-      ctx = new AudioContext({ sampleRate: 22050 });
+      const w = graphWindow();
+      const AC =
+        w.AudioContext ||
+        (w as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      ctx = new AC({ sampleRate: 22050 });
       master = ctx.createGain();
-      master.gain.value = 0.3;
+      applyMaster();
       master.connect(ctx.destination);
 
       dry = ctx.createGain();
@@ -157,6 +198,19 @@ export function createDiskAudio(): DiskAudio {
       wet.connect(clickWet);
       src.start(t);
       src.stop(t + 0.4);
+    },
+    reattach(win: Window) {
+      host = win && !win.closed ? win : window;
+      teardownGraph();
+      this.resume();
+    },
+    setVolume(level: number) {
+      volume = Math.min(1, Math.max(0, level));
+      applyMaster();
+    },
+    setMuted(next: boolean) {
+      muted = next;
+      applyMaster();
     },
     resume() {
       const ac = ensure();

@@ -25,6 +25,7 @@ type EmuState = {
   scanlines: boolean;
   invert: boolean;
   muted: boolean;
+  volume: number;
   focused: boolean;
   status: string;
   booted: boolean;
@@ -54,6 +55,7 @@ type EmuState = {
   setScanlines: (scanlines: boolean) => void;
   setInvert: (invert: boolean) => void;
   setMuted: (muted: boolean) => void;
+  setVolume: (volume: number) => void;
   setFocused: (focused: boolean) => void;
   setStatus: (status: string) => void;
   setBooted: (booted: boolean) => void;
@@ -83,7 +85,8 @@ export const useEmu = create<EmuState>((set) => ({
   color: true,
   scanlines: true,
   invert: false,
-  muted: true,
+  muted: false,
+  volume: 50,
   focused: false,
   status: "Powering on…",
   booted: false,
@@ -132,6 +135,7 @@ export const useEmu = create<EmuState>((set) => ({
   setScanlines: (scanlines) => set({ scanlines }),
   setInvert: (invert) => set({ invert }),
   setMuted: (muted) => set({ muted }),
+  setVolume: (volume) => set({ volume: Math.min(100, Math.max(0, volume)) }),
   setFocused: (focused) => set({ focused }),
   setStatus: (status) => set({ status }),
   setBooted: (booted) => set({ booted }),

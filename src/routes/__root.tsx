@@ -4,7 +4,7 @@ import { PreviewHostBridge } from "@/components/preview-host-bridge";
 import { asset } from "@/lib/asset";
 import appCss from "../styles.css?url";
 
-const APP_NAME = "OpenApple";
+const APP_NAME = "SW-OpenApple";
 
 export const Route = createRootRoute({
   head: () => ({

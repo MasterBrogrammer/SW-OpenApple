@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
- * OpenApple MCP — stdio to Grok, HTTP to the running emulator tab.
- * Bind: 127.0.0.1:9877 (OPENAPPLE_MCP_PORT).
+ * WOZMCP — stdio to Grok, HTTP to the running SW-OpenApple tab.
+ * Bind: 127.0.0.1:9877 (WOZMCP_PORT / OPENAPPLE_MCP_PORT).
  */
 import http from "node:http";
 import { Buffer } from "node:buffer";
@@ -9,7 +9,7 @@ import { mkdirSync, writeFileSync, writeSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const PORT = Number(process.env.OPENAPPLE_MCP_PORT || 9877);
+const PORT = Number(process.env.WOZMCP_PORT || process.env.OPENAPPLE_MCP_PORT || 9877);
 const HOST = "127.0.0.1";
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const SHOT_DIR = join(ROOT, "screenshots");
@@ -98,7 +98,7 @@ let cmdSeq = 0;
 let lastSeen = 0;
 
 function log(...args) {
-  process.stderr.write(`[openapple-mcp] ${args.join(" ")}\n`);
+  process.stderr.write(`[wozmcp] ${args.join(" ")}\n`);
 }
 
 // MCP stdio is JSON-RPC on stdout. Never let console.log leak into the pipe.
@@ -123,7 +123,7 @@ function sendToBrowser(name, args, timeoutMs = 20000) {
     const id = `c${++cmdSeq}`;
     const timeout = setTimeout(() => {
       inflight.delete(id);
-      reject(new Error("Emulator did not answer (is OpenApple open on :8080?)"));
+      reject(new Error("Emulator did not answer (is SW-OpenApple open on :8080?)"));
     }, timeoutMs);
     inflight.set(id, { resolve, reject, timeout });
     const payload = { id, name, args: args ?? {} };
@@ -378,9 +378,9 @@ async function onMessage(msg) {
       result: {
         protocolVersion,
         capabilities: { tools: { listChanged: false } },
-        serverInfo: { name: "openapple", version: "1.0.0" },
+        serverInfo: { name: "WOZMCP", version: "1.0.0" },
         instructions:
-          "OpenApple IIe emulator. Tools talk to the browser tab at http://127.0.0.1:8080/ via a localhost bridge. If status says the emulator is not connected, the user needs that tab open.",
+          "SW-OpenApple IIe emulator. Tools talk to the browser tab at http://127.0.0.1:8080/ via a localhost bridge. If status says the emulator is not connected, the user needs that tab open.",
       },
     });
     log("initialize", protocolVersion, `id=${JSON.stringify(id)}`);
