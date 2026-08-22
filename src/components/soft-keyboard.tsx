@@ -71,10 +71,10 @@ export function SoftKeyboard({
   const [open, setOpen] = useState(false);
 
   return (
-    <div className="md:hidden">
+    <div className="mt-auto shrink-0 md:hidden">
       <button
         type="button"
-        className="mt-3 h-10 w-full rounded-md bg-raised text-sm text-muted hover:text-fg"
+        className="mt-2 h-11 w-full rounded-md bg-raised text-sm text-muted hover:text-fg"
         onClick={() => setOpen((v) => !v)}
       >
         {open ? "Hide keyboard" : "Show keyboard"}
@@ -82,13 +82,13 @@ export function SoftKeyboard({
       {open ? (
         <div className="mt-2 space-y-1 rounded-md bg-raised p-2">
           {ROWS.map((row, i) => (
-            <div key={i} className="flex gap-1">
+            <div key={i} className="flex gap-1 overflow-x-auto">
               {row.map((key) => (
                 <button
                   key={key.label}
                   type="button"
                   className={cn(
-                    "h-9 min-w-0 flex-1 rounded-sm bg-surface font-mono text-[10px] text-fg active:bg-accent active:text-accent-fg",
+                    "h-11 min-w-11 flex-1 rounded-sm bg-surface font-mono text-[10px] text-fg active:bg-accent active:text-accent-fg",
                     key.grow && "flex-[1.6]",
                   )}
                   onPointerDown={(e) => {
@@ -105,7 +105,7 @@ export function SoftKeyboard({
           ))}
           <button
             type="button"
-            className="h-9 w-full rounded-sm bg-surface font-mono text-xs text-fg active:bg-accent active:text-accent-fg"
+            className="h-11 w-full rounded-sm bg-surface font-mono text-xs text-fg active:bg-accent active:text-accent-fg"
             onPointerDown={(e) => {
               e.preventDefault();
               onKey(0x20);
