@@ -3,6 +3,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { EmulatorScreen } from "@/components/emulator-screen";
 import { MobileAppleChrome } from "@/components/mobile-apple-chrome";
 import { MobilePlayShell } from "@/components/mobile-play-shell";
+import { CATALOG } from "@/lib/catalog";
 import {
   DiskDropBanner,
   SoftwareLibrary,
@@ -68,6 +69,8 @@ function Home() {
       ) : (
         <MobilePlayShell
           brand="]["
+          sheetLabel="Library"
+          badge={CATALOG.length}
           crt={<EmulatorScreen chrome="minimal" />}
           chrome={<MobileAppleChrome />}
         />
