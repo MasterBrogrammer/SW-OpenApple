@@ -285,7 +285,14 @@
 
 .mobile-crt-stage .screen-stage {
   flex: 1 1 auto;
-  min-height: min(62dvh, 420px);
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* Cover (not contain): portrait width-fit left ~30% letterbox on ~390×844. */
+.mobile-crt-stage .screen-bezel {
+  width: max(100cqw, calc(100cqh * 560 / 384));
+  height: max(100cqh, calc(100cqw * 384 / 560));
 }
 
 .mobile-chrome-sheet {
