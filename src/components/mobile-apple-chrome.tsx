@@ -19,8 +19,23 @@ export function MobileAppleChrome() {
   const drive1On = useEmu((s) => s.drive1On);
 
   return (
-    <div className="flex flex-col gap-4 pt-1">
-      <section className="flex flex-col gap-3" aria-labelledby="mobile-machine-heading">
+    <div className="flex min-h-0 flex-col gap-3 pt-1">
+      <section
+        className="flex min-h-0 flex-1 flex-col gap-2"
+        aria-labelledby="mobile-library-heading"
+      >
+        <h2
+          id="mobile-library-heading"
+          className="text-[10px] tracking-wide text-muted uppercase"
+        >
+          Library
+        </h2>
+        <div className="mobile-library-list min-h-[40vh] flex-1 overflow-hidden rounded-md border border-border">
+          <SoftwareLibrary />
+        </div>
+      </section>
+
+      <section className="flex shrink-0 flex-col gap-3" aria-labelledby="mobile-machine-heading">
         <h2
           id="mobile-machine-heading"
           className="text-[10px] tracking-wide text-muted uppercase"
@@ -112,18 +127,6 @@ export function MobileAppleChrome() {
               </MobileTap>
             );
           })}
-        </div>
-      </section>
-
-      <section className="flex flex-col gap-2" aria-labelledby="mobile-library-heading">
-        <h2
-          id="mobile-library-heading"
-          className="text-[10px] tracking-wide text-muted uppercase"
-        >
-          Library
-        </h2>
-        <div className="mobile-library-list min-h-[40vh] overflow-hidden rounded-md border border-border">
-          <SoftwareLibrary />
         </div>
       </section>
     </div>
