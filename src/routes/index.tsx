@@ -1,6 +1,9 @@
 import { useEffect, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { EmulatorScreen } from "@/components/emulator-screen";
+import { MobileAppleChrome } from "@/components/mobile-apple-chrome";
+import { MobilePlayShell } from "@/components/mobile-play-shell";
+import { CATALOG } from "@/lib/catalog";
 import {
   DiskDropBanner,
   SoftwareLibrary,
@@ -10,6 +13,7 @@ import { UserButton } from "@/lib/auth/gates";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { resumeAllAudio } from "@/lib/disk-audio";
 import { startMcpBridge } from "@/lib/mcp-bridge";
+import { useDesktopLayout } from "@/lib/use-desktop-layout";
 import { useEmu } from "@/lib/emu-store";
 import { importDiskFiles, userTitleId } from "@/lib/user-disks";
 
@@ -17,6 +21,7 @@ export const Route = createFileRoute("/")({ component: Home });
 
 function Home() {
   const requestLoad = useEmu((s) => s.requestLoad);
+  const desktop = useDesktopLayout();
   const [dropError, setDropError] = useState<string | null>(null);
   useEffect(() => startMcpBridge(), []);
   const drop = useDiskDrop((files) => {
@@ -34,25 +39,42 @@ function Home() {
 
   return (
     <div
-      className="flex min-h-dvh flex-col lg:h-dvh lg:max-h-dvh lg:overflow-hidden"
+      className={
+        desktop
+          ? "flex h-dvh max-h-dvh flex-col overflow-hidden"
+          : "flex min-h-dvh flex-col"
+      }
       {...drop.props}
     >
       <DiskDropBanner active={drop.over} />
-      <Header />
       {dropError ? (
         <div className="border-b border-danger/40 bg-danger/10 px-4 py-2 text-center text-xs text-danger">
           {dropError}
         </div>
       ) : null}
-      <main className="mx-auto grid w-full max-w-[1400px] min-h-0 flex-1 grid-cols-1 gap-4 p-4 lg:grid-cols-[minmax(0,1fr)_minmax(20rem,26rem)] lg:overflow-hidden">
-        <EmulatorScreen />
-        <SoftwareLibrary />
-      </main>
-      <footer className="hidden shrink-0 border-t border-border px-4 py-2 text-center text-xs text-muted lg:block">
-        Emulator core is Apple ][js by Will Scullin (MIT). Enhanced IIe, 65C02,
-        Disk II + SmartPort. Bundled disks are FOSS or historic system software;
-        drop your own .dsk for the rest.
-      </footer>
+
+      {desktop ? (
+        <>
+          <Header />
+          <main className="mx-auto grid w-full max-w-[1400px] min-h-0 flex-1 grid-cols-[minmax(0,1fr)_minmax(20rem,26rem)] gap-4 overflow-hidden p-4">
+            <EmulatorScreen chrome="full" />
+            <SoftwareLibrary />
+          </main>
+          <footer className="shrink-0 border-t border-border px-4 py-2 text-center text-xs text-muted">
+            Emulator core is Apple ][js by Will Scullin (MIT). Enhanced IIe, 65C02,
+            Disk II + SmartPort. Bundled disks are FOSS or historic system software;
+            drop your own .dsk for the rest.
+          </footer>
+        </>
+      ) : (
+        <MobilePlayShell
+          brand="]["
+          sheetLabel="Library"
+          badge={CATALOG.length}
+          crt={<EmulatorScreen chrome="minimal" />}
+          chrome={<MobileAppleChrome />}
+        />
+      )}
     </div>
   );
 }
