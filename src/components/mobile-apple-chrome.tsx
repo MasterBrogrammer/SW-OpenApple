@@ -122,7 +122,7 @@ export function MobileAppleChrome() {
         >
           Library
         </h2>
-        <div className="min-h-[40vh] overflow-hidden rounded-md border border-border">
+        <div className="mobile-library-list min-h-[40vh] overflow-hidden rounded-md border border-border">
           <SoftwareLibrary />
         </div>
       </section>
